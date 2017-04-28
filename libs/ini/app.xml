@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<application>
+    <!-- 公共目录 -->
+    <dir name="common">
+        <!-- 公共配置目录 -->
+        <dir name="config">
+            <ini name="config">
+                <![CDATA[<?php
+/**
+ * 用户配置文件
+ */
+return [
+    'HTTP' => [
+        'cache_time' => 0, //请求结果缓存时间单位秒, 0代表不缓存(建议高PV的应用设置)
+        'gzip' => 1 //响应数据压缩率, 0不压缩, 取值1-9压缩率越高CPU消耗越大
+    ],
+    'SERVER' => [
+        'ip' => '127.0.0.1',
+        'port' => '9200',
+        'reactor_num' => 2, //poll线程的数量(根据CPU核数配置)
+        'worker_num' => 8,    //同时运行的进程数目(可配置CPU核数的1-4倍)
+        'backlog' => 128,   //最大握手排队数量
+        'max_request' => 1000 //此参数表示worker进程在处理完n次请求后结束运行。manager会重新创建一个worker进程。此选项用来防止worker进程内存溢出。
+    ],
+    'SESSION' => [
+        'AUTO_START' => true, //是否自动开启session
+        'DOMAIN' => '',
+        'PATH' => '/',
+        'EXPIRE' => 180 * 60 //session到期时间单位(秒)
+    ],
+    'WEBSOCKET' => [
+        'is_enable' => 0, //是否开启websocket
+        'heartbeat_idle_time' => 600, //一个连接如果600秒内未向服务器发送任何数据，此连接将被强制关闭
+        'heartbeat_check_interval' => 60, //表示每60秒遍历一次
+        'data_type' => 'json' //message接收到的数据类型 string|json
+    ],
+    //定时器, 具体配置请参考wiki
+    'TIMER' => [
+    ],
+    //异步任务投递, 具体配置请参考wiki
+    'TASK' => [
+    ]
+];
+                ]]>
+            </ini>
+            <ini name="database">
+                <![CDATA[<?php
+/**
+ * 数据库配置文件
+ */
+return [
+    'DB_CONF' => [
+        'DB_TYPE'   => 'mysql', // 数据库类型
+        'DB_HOST'   => '127.0.0.1', // 服务器地址
+        'DB_NAME'   => 'table', // 数据库名
+        'DB_USER'   => 'root', // 用户名
+        'DB_PASS'   => '123456', // 密码
+        'DB_PORT'   => '3306', // 端口
+        'DB_PREFIX' => 'di_', // 数据库表前缀
+        'DB_CHARSET'=> 'utf8mb4' // 字符集
+    ]
+];
+                ]]>
+            </ini>
+        </dir>
+        <!-- 公共模板目录 -->
+        <dir name="tpl">
+            <tpl name="success">
+                <![CDATA[<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<title>成功提示!</title>
+<style>
+fieldset {border:solid 1px #ddd; position: absolute; width:400px; left:50%;top:50%;margin: -100px 0 0 -200px;border-radius: 8px;}
+</style>
+</head>
+<body>
+<fieldset>
+    <legend style="color:rgb(118, 180, 113)"> O(∩_∩)O 成功提示! </legend>
+    <p style="text-align: center; height:120px;"><big><?=$message?></big></p>
+    <p style="text-align: center;">还有 <span>5</span> 秒自动跳转,或<a href="javascript:jump();">手动跳转</a>!</p>
+</fieldset>
+<script>
+var s = <?=$second?>;
+var p = setInterval(function(){
+    s --;
+    if(s < 0)
+        jump();
+    else
+        document.querySelector('span').innerHTML = s;
+}, 1000);
+
+function jump(){
+    window.clearInterval(p);
+    <?php if($url === null):?>
+    window.history.back();
+    <?php else:?>
+    window.location.href = '<?=$url?>';
+    <?php endif;?>
+}
+</script>
+</body>
+</html>
+                ]]>
+            </tpl>
+            <tpl name="error">
+                <![CDATA[<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<title>错误提示!</title>
+<style>
+fieldset {border:solid 1px #ddd; position: absolute; width:400px; left:50%;top:50%;margin: -100px 0 0 -200px;border-radius: 8px;}
+</style>
+</head>
+<body>
+<fieldset>
+    <legend style="color:#ff8566"> ╮(╯▽╰)╭ 错误提示! </legend>
+    <p style="text-align: center; height:120px;"><big><?=$message?></big></p>
+    <p style="text-align: center;">还有 <span>5</span> 秒自动跳转,或<a href="javascript:jump();">手动跳转</a>!</p>
+</fieldset>
+<script>
+var s = <?=$second?>;
+var p = setInterval(function(){
+    s --;
+    if(s < 0)
+        jump();
+    else
+        document.querySelector('span').innerHTML = s;
+}, 1000);
+
+function jump(){
+    window.clearInterval(p);
+    <?php if($url === null):?>
+    window.history.back();
+    <?php else:?>
+    window.location.href = '<?=$url?>';
+    <?php endif;?>
+}
+</script>
+</body>
+</html>
+                ]]>
+            </tpl>
+        </dir>
+        <!-- 第三方扩展目录 -->
+        <dir name="util"></dir>
+    </dir>
+    <!-- 默认模块目录 -->
+    <dir name="home">
+        <!-- 控制器目录 -->
+        <dir name="controller">
+            <class name="index">
+                <![CDATA[<?php
+
+namespace Home\Controller;
+use Root\Controller;
+
+class IndexController extends Controller
+{
+    public function index(){
+        $this->display();
+    }
+}
+
+                ]]>
+            </class>
+        </dir>
+        <!-- 数据模型目录 -->
+        <dir name="model">
+        </dir>
+        <!-- 视图目录 -->
+        <dir name="view">
+            <dir name="index">
+                <tpl name="index">
+                    <![CDATA[<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<title>欢迎使用SSF!</title>
+</head>
+<body>
+<h1>欢迎使用SSF(Simple-Swoole-Framework)!</h1>
+<h3>您的应用已经部署成功!</h3>
+</body>
+</html>
+                    ]]>
+                </tpl>
+            </dir>
+        </dir>
+        <!-- websocket目录 -->
+        <dir name="websocket">
+            <class name="index">
+                <![CDATA[<?php
+/**
+ * websocket类
+ */
+
+namespace Home\Websocket;
+use Root\Websocket\ServerPush;
+
+class IndexWebsocket extends ServerPush
+{
+    /**
+     * OPEN回调
+     * return bool true允许连接 false报101错误禁止连接
+     */
+    public function _open(){
+        $this->team(0, $this->fd);
+        return true;
+    }
+
+    /**
+     * MESSAGE回调
+     * string|array $data 接受到的数据
+     */
+    public function _message($data){
+    }
+
+    /**
+     * CLOSE回调
+     */
+    public function _close(){
+    }
+}
+                ]]>
+            </class>
+        </dir>
+    </dir>
+    <!-- 运行时目录 -->
+    <dir name="runtime">
+        <!-- 日志目录 -->
+        <dir name="log">
+        </dir>
+        <!-- 临时文件目录 -->
+        <dir name="tmp">
+        </dir>
+    </dir>
+</application>

@@ -1,37 +1,38 @@
-## Welcome to GitHub Pages
+# Simple-Swoole-Framework
+基于swoole引擎的PHP框架，结构清晰，部署简单，使用方便。可以灵活应对HTTP/Websocket服务，另有定时器、异步任务等。
 
-You can use the [editor on GitHub](https://github.com/ljj7410/Simple-Swoole-Framework/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+-----------
+## 简单部署
+<pre><code>git clone git@github.com:ljj7410/Simple-Swoole-Framework.git</code></pre>
+<pre><code>php index.php start //开启应用，第一次开启将会自动生成[apps]应用目录
+php index.php stop //关闭应用
+php index.php reload //热更新
+php index.php restart //重启
+php index.php status //查看进程状态</code></pre>
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+----------
+## 应用目录结构
+<pre>
+|- apps
+|- |- common  --公共目录
+|- |- |- config  --配置目录
+|- |- |- |- config.ini.php  --配置文件
+|- |- |- |- database.ini.php  --数据库配置文件
+|- |- |- tpl  --公共模板目录
+|- |- |- |- error.tpl.php  --错误提示模板文件
+|- |- |- |- success.tpl.php  --成功提示模板文件
+|- |- |- util  --第三方类库目录
+|- |- home  --默认模块目录
+|- |- |- controller  --控制器目录
+|- |- |- |- index.class.php  --默认控制器文件
+|- |- |- model  --模块目录
+|- |- |- view  --视图目录
+|- |- |- |- index  --默认视图目录
+|- |- |- |- |- index.tpl.php  --默认视图模板文件
+|- |- |- websocket  --websocket目录
+|- |- |- |- index.class.php  --默认websocket文件
+|- |- runtime  --运行时产生的文件目录
+|- |- |- log  --日志目录
+|- |- |- tmp  --临时文件目录
+</pre>
 
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/ljj7410/Simple-Swoole-Framework/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.

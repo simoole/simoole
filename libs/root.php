@@ -98,7 +98,7 @@ Class Root
 
         //清空缓存
         \Root\Cache::clear(true);
-        unlink(TMP_PATH . 'running.tmp');
+        @unlink(TMP_PATH . 'running.tmp');
 
         //启动异常处理和控制台
         \Root\Console::load();

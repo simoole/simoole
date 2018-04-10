@@ -14,9 +14,9 @@ Class Cache {
 	Static Private function getInstance()
 	{
 		if(empty(self::$config))
-			self::$config = \Root::$conf['CACHE'];
+			self::$config = array_merge(\Root::$conf['CACHE'], \Root::$conf[\Root::$conf['CACHE']['DRIVE']]);
 		if(self::$instance === null){
-			$classname = '\\Root\\Cache\\' . ucfirst(strtolower(self::$config['DRIVE']));
+			$classname = "\\Root\\Cache\\" . ucfirst(strtolower(self::$config['DRIVE']));
 			self::$instance = new $classname(self::$config);
 		}
 		return self::$instance;
@@ -46,7 +46,8 @@ Class Cache {
 	 */
 	Static Public function get(string $key)
 	{
-		return self::getInstance()->get($key);
+	    $data = self::getInstance()->get($key);
+        return $data;
 	}
 	
 	/**
@@ -55,7 +56,7 @@ Class Cache {
 	 * @param string $value 缓存值
 	 * @param int $timeout 缓存超时时间(s)
 	 */
-	Static Public function set(string $key, string $value, int $timeout = null)
+	Static Public function set(string $key, $value, int $timeout = null)
 	{
 		return self::getInstance()->set($key, $value, $timeout);
 	}

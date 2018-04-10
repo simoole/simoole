@@ -32,7 +32,7 @@ class Timer
         $pid = getmypid();
         $num = count(glob(TMP_PATH . 'child_*.pid'));
         @file_put_contents(TMP_PATH . 'child_'. $num .'.pid', $pid);
-        $process->name("Child[{$num}] process in <{$argv[0]}>");
+        $process->name("Child[{$num}] process in <". __ROOT__ ."{$argv[0]}>");
         \swoole_process::signal(SIGUSR1, function() use ($pid){
             T('__PROCESS')->set($pid, [
                 'memory_usage' => memory_get_usage(true),
@@ -80,24 +80,28 @@ class Timer
                     'Accept' => 'text/html,application/xhtml+xml,application/xml',
                     'Accept-Encoding' => 'gzip',
                 ]);
+                $cli->set(['timeout' => 3]);
                 if(!empty($opt['post']))$cli->setData(http_build_query($opt['post']));
-                $url = '/' . $path . C('APPS.ext');
+                $url = '/' . $path . C('HTTP.ext');
                 if(!empty($opt['get']))$url .= '?' . http_build_query($opt['get']);
                 $cli->execute($url, function ($cli) use ($path) {
                     $code = '['. date('Y-m-d H:i:s') .'][请求状态:' . $cli->statusCode . ']' . PHP_EOL;
                     $code .= $cli->body . PHP_EOL;
                     L($code, str_replace('/', '_', $path), '_crontab');
+                    $cli->close();
                 });
             }
         }
 
         //清理过期session
         if($time % C('SESSION.CLEANUP') == 0){
-            self::sessionCleanup();
+            //清理过期的session
+            \Root\Session::cleanup();
+            //清理过期cache
+            \Root\Cache::clear();
+            //清理过期内存表
+            \Root\Table::clearAll();
         }
-
-        //清理过期cache
-        \Root\Cache::clear();
     }
 
     /**
@@ -145,22 +149,5 @@ class Timer
             }
         }
         return true;
-    }
-
-    /**
-     * 清理过期session
-     */
-    Static private function sessionCleanup()
-    {
-        $table = T('__SESSION');
-        $keys = [];
-        $table->each(function(string $key, array $row){
-            if($row['timeout'] < time()){
-                $keys[] = $key;
-            }
-        });
-        foreach($keys as $key){
-            $table->del($key);
-        }
     }
 }

@@ -47,8 +47,8 @@ Class RelationModel extends Model
 			return false;
 		}
 
-		$classname = strrchr(get_class($this), '\\');
-		$tablename = trim(substr($classname, 0, -5), '\\');
+		$classname = strrchr(get_class($this), "\\");
+		$tablename = trim(substr($classname, 0, -5), "\\");
 
 		if(array_key_exists($tablename, \Root::$worker->tmpTables)){
 			return 'tmp_' . $tablename;

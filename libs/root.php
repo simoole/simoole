@@ -78,22 +78,28 @@ Class Root
     {
         if(is_file(TMP_PATH . 'server.pid')){
             $pid = @file_get_contents(TMP_PATH . 'server.pid');
-            if($pid && swoole_process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
+            if($pid && \swoole_process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
         }
-
+        ini_set('default_socket_timeout', -1);
+        //开启session
+        @session_start();
         echo "Framework Starting...", PHP_EOL;
         //加载函数库
         self::loadUtil();
         //加载框架类库
         self::loadClass();
+        //生成本实例的hash值
+        define('HASH_KEY', createKey(time()));
         //加载配置文件
         self::$conf = self::loadConf();
+        //模板文件后缀
+        define('TPL_EXT', C('HTTP.tpl_ext'));
+        //设置类库文件的懒加载
+        self::autoload();
         //检测端口是否可用
         if(!checkPort(self::$conf['SERVER']['ip'], self::$conf['SERVER']['port'])){
             die('Port is occupied!' . PHP_EOL . "Starting Failed!" . PHP_EOL);
         }
-        //模板文件后缀
-        define('TPL_EXT', C('APPS.tpl_ext'));
         date_default_timezone_set(self::$conf['TIMEZONE']);
 
         //清空缓存
@@ -110,18 +116,20 @@ Class Root
             echo "Memory table creation failed!", PHP_EOL, "Starting Failed!", PHP_EOL;
             return;
         }
+
         //创建定时器
-        \Root\Timer::create();
+        if(C('SERVER.enable_child'))\Root\Timer::create();
 
         $conf = self::$conf['SERVER'];
         $setup = [
             'pid_file' => TMP_PATH . 'server.pid',
+            //'reload_async' => true,
             'reactor_num' => $conf['reactor_num'],
             'worker_num' => $conf['worker_num'],
             'backlog' => $conf['backlog'],
-            'open_tcp_nodelay' => true,
+            //'open_tcp_nodelay' => true,
             'max_request' => $conf['max_request'],
-            'dispatch_mode' => 1
+            'dispatch_mode' => $conf['dispatch_mode']
         ];
         self::$tasks = C('TASK')?:[];
         if(!empty(self::$tasks)){
@@ -142,8 +150,10 @@ Class Root
         }
         if(C('WEBSOCKET.is_enable')){
             self::$serv = Root\Websocket::create($conf['ip'], $conf['port']);
-            $setup['heartbeat_idle_time'] = C('WEBSOCKET.heartbeat_idle_time');
-            $setup['heartbeat_check_interval'] = C('WEBSOCKET.heartbeat_check_interval');
+            if(C('WEBSOCKET.heartbeat') == 1){
+                $setup['heartbeat_idle_time'] = C('WEBSOCKET.heartbeat_idle_time');
+                $setup['heartbeat_check_interval'] = C('WEBSOCKET.heartbeat_check_interval');
+            }
         }else{
             self::$serv = new swoole_http_server($conf['ip'], $conf['port']) or die('Swoole Starting Failed!' . PHP_EOL);
         }
@@ -151,10 +161,14 @@ Class Root
         self::$serv->set($setup);
 
         self::$serv->on('start', 'Root\Http::start');
+        self::$serv->on('shutdown', 'Root\Http::shutdown');
         self::$serv->on('managerstart', 'Root\Http::managerStart');
 
-        //设置工作进程启动回调
-        self::$serv->on('workerstart', 'Root\Worker::start');
+        //设置工作/任务进程启动回调
+        self::$serv->on('workerstart', 'Root\Worker::onstart');
+
+        //设置工作/任务进程结束回调
+        self::$serv->on('workerstop', 'Root\Worker::onstop');
 
         //设置进程间管道通信回调
         self::$serv->on('pipemessage', 'Root\Worker::pipeMessage');
@@ -168,6 +182,9 @@ Class Root
             self::$serv->on('finish', 'Root\Task::finish');
         }
 
+        //实例启动前执行
+        $method = C('APP.before_start');
+        if(!empty($method))$method();
         self::$serv->start();
     }
 
@@ -179,10 +196,12 @@ Class Root
         $pid = @file_get_contents(TMP_PATH . 'server.pid');
         if($pid){
             if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 15);
-            foreach(glob(TMP_PATH . '*.pid') as $filename){
-                $pid = @file_get_contents($filename);
-                if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 9);
-                @unlink($filename);
+            else{
+                foreach(glob(TMP_PATH . '*.pid') as $filename){
+                    $pid = @file_get_contents($filename);
+                    if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 9);
+                    @unlink($filename);
+                }
             }
             die('Stop of Framework Success!' . PHP_EOL);
         }
@@ -253,20 +272,20 @@ Class Root
     Static Public function loadFiles(string $filepath, $return = false)
     {
         if(!is_file($filepath)){
-            self::error($filepath . " does not exist!", E_USER_ERROR);
+            trigger_error($filepath . " does not exist!", E_USER_WARNING);
         }
         if($return === true)
-            return include $filepath;
+            return require $filepath;
         elseif(is_array($return))
             extract($return);
-        include $filepath;
+        require $filepath;
     }
 
     /**
      * 加载配置文件
      * @param string $name 配置文件名称
      */
-    Static Private function loadConf(string $name = 'config')
+    Static Public function loadConf(string $name = 'config')
     {
         $config = self::loadFiles(LIB_PATH . 'ini/' . $name . INI_EXT, true);
         $_config = [];
@@ -286,52 +305,63 @@ Class Root
         return $config;
     }
 
-
-    /**
-     * 错误输出
-     * @param string $title 错误标识
-     * @param string $content 错误内容
-     * @param string $type 错误类型 [E_USER_NOTICE, E_USER_ERROR, E_USER_WARNING]
-     */
-    Static Public function error(string $title, $content = null, string $type = null)
-    {
-        if(is_numeric($content)){
-            $type = $content;
-            $content = null;
-        }
-        \Root\Console::input($title, $content, $type);
-    }
-
     /**
      * 自动加载所有类(包括应用类)
      */
     Static Public function loadClass(string $dir = '')
     {
         $map = get_declared_classes();
-        //加载框架类库
-        $dir = rtrim($dir?:LIB_PATH, '/');
-        $files = scandir($dir);
-        $files = array_diff($files, ['.', '..']);
-        $dirs = [];
-        foreach($files as $file){
-            $path = $dir .'/'. $file;
-            if(is_dir($path)){
-                $dirs[] = $path;
-            }elseif(strpos($file, CLS_EXT) > 0){
+        //加载类库表
+        if(C('MAP_TYPE') > 0){
+            foreach(C('MAPS') as $path){
+                $path = __ROOT__ . $path;
+                foreach(self::$map as $m){
+                    if($m['path'] == $path)continue 2;
+                }
                 self::loadFiles($path);
                 foreach(get_declared_classes() as $classname){
-                    if(!isset(self::$map[$classname]) && !in_array($classname, $map))
+                    if(!isset(self::$map[$classname]) && !in_array($classname, $map)){
                         self::$map[$classname] = [
                             'path' => $path,
-                            'classname' => trim(strrchr($classname, '\\'), '\\'),
+                            'classname' => trim(strrchr($classname, "\\"), "\\"),
                             'vars' => array_keys(get_class_vars($classname)),
                             'methods' => get_class_methods($classname)
                         ];
+                    }
                 }
             }
         }
-        foreach($dirs as $dir){
-            self::loadClass($dir);
+
+        if(empty($dir) || C('MAP_TYPE') < 2){
+            //加载框架类库
+            $dir = rtrim($dir ?: LIB_PATH, '/');
+            $files = scandir($dir);
+            $files = array_diff($files, ['.', '..']);
+            $dirs = [];
+            foreach ($files as $file) {
+                $path = $dir . '/' . $file;
+                if (is_dir($path)) {
+                    $dirs[] = $path;
+                } elseif (strpos($file, CLS_EXT) > 0) {
+                    foreach (self::$map as $m) {
+                        if ($m['path'] == $path) continue 2;
+                    }
+                    self::loadFiles($path);
+                    foreach (get_declared_classes() as $classname) {
+                        if (!isset(self::$map[$classname]) && !in_array($classname, $map)) {
+                            self::$map[$classname] = [
+                                'path' => $path,
+                                'classname' => trim(strrchr($classname, "\\"), "\\"),
+                                'vars' => array_keys(get_class_vars($classname)),
+                                'methods' => get_class_methods($classname)
+                            ];
+                        }
+                    }
+                }
+            }
+            foreach ($dirs as $dir) {
+                self::loadClass($dir);
+            }
         }
     }
 
@@ -352,6 +382,64 @@ Class Root
                 self::loadFiles($path);
             }
         }
+    }
+
+    /**
+     * 注册第三方应用库懒加载
+     */
+    Static Public function autoload()
+    {
+        spl_autoload_register(function($classname){
+            $arr = explode("\\", $classname);
+            //先查找第三方应用目录
+            $path = COMMON_PATH . 'util/';
+            foreach($arr as $val){
+                if(is_dir($path . $val)){
+                    $path .= $val . '/';
+                }elseif(is_file($path . $val . '.php')){
+                    $path .= $val . '.php';
+                    break;
+                }elseif(is_file($path . strtolower($val) . '.php')){
+                    $path .= strtolower($val) . '.php';
+                    break;
+                }elseif(is_file($path . strtolower($val) . '.class.php')){
+                    $path .= strtolower($val) . '.class.php';
+                    break;
+                }else{
+                    break;
+                }
+            }
+            if(!is_file($path)){
+                $path = LIB_PATH . 'util/';
+                foreach($arr as $val){
+                    $path .= $val;
+                    if(is_dir($path)){
+                        $path .= '/';
+                    }elseif(is_file($path . '.php')){
+                        $path .= '.php';
+                        break;
+                    }elseif(is_file(strtolower($path) . '.php')){
+                        $path = strtolower($path) . '.php';
+                        break;
+                    }elseif(is_file(strtolower($path) . '.class.php')){
+                        $path = strtolower($path) . '.class.php';
+                        break;
+                    }else{
+                        trigger_error('第三方扩展 ' . $classname . ' 没有找到！');
+                        return false;
+                    }
+                }
+            }
+            if (!isset(self::$map[$classname])) {
+                self::$map[$classname] = [
+                    'path' => $path,
+                    'classname' => trim(strrchr($classname, "\\"), "\\"),
+                    'vars' => array_keys(get_class_vars($classname)?:[]),
+                    'methods' => get_class_methods($classname)
+                ];
+            }
+            require $path;
+        });
     }
 
     /**

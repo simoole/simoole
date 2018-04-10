@@ -33,9 +33,9 @@ class Task
             'post' => $json['post'],
             'cookie' => $json['cookie'],
             'input' => '',
-            'mod_name' => C('APPS.module'),
-            'cnt_name' => C('APPS.controller'),
-            'act_name' => C('APPS.action')
+            'mod_name' => C('HTTP.module'),
+            'cnt_name' => C('HTTP.controller'),
+            'act_name' => C('HTTP.action')
         ];
         $route = self::$callback;
 
@@ -56,10 +56,10 @@ class Task
         \Root::$user = new User($data);
 
         //实例化控制器,并运行方法
-        $class_name = ucfirst($data['mod_name']) . '\\Controller\\' . ucfirst($data['cnt_name']) . 'Controller';
+        $class_name = ucfirst($data['mod_name']) . "\\Controller\\" . ucfirst($data['cnt_name']) . "Controller";
         $actname = $data['act_name'];
         if(!isset(\Root::$map[$class_name]) || !in_array($actname, \Root::$map[$class_name]['methods'])){
-            $serv->finish(json_encode(['status' => 0, 'info' => '[DeanPHP]404 Not Found!']));
+            $serv->finish(json_encode(['status' => 0, 'info' => '[SSF]404 Not Found!']));
             return;
         }
 
@@ -78,7 +78,7 @@ class Task
 
         if(empty($content))$content = ob_get_clean();
 
-        \Root::$user->sessionSave();
+        \Root::$user->save();
 
         $serv->finish(json_encode(['status' => 1, 'info' => $content]));
 
@@ -123,7 +123,7 @@ class Task
      */
     Public function add($data, callable $callback = null)
     {
-        static $i = 4;
+        static $i = 0;
         $user = \Root::$user;
         $datas = [
             'server' => array_diff_key($user->server, $user->header),

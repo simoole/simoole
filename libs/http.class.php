@@ -19,7 +19,7 @@ class Http
     Static Public function start(\swoole_server $server)
     {
         global $argv;
-        \swoole_set_process_name("Master process in <{$argv[0]}>");
+        \swoole_set_process_name("Master process in <". __ROOT__ ."{$argv[0]}>");
         //绑定状态事件
         \swoole_process::signal(SIGUSR1, '\Root\Http::status');
         //绑定重载事件
@@ -35,6 +35,26 @@ class Http
             'memory_usage' => memory_get_usage(true),
             'memory_used' => memory_get_usage()
         ]);
+
+        //实例启动后执行
+        $method = C('APP.after_start');
+        if(!empty($method))$method();
+    }
+
+    /**
+     * Swoole正常关闭时回调
+     * @param \swoole_server $server
+     */
+    Static Public function shutdown(\swoole_server $server)
+    {
+        //实例启动后执行
+        $method = C('APP.after_stop');
+        if(!empty($method))$method();
+        foreach(glob(TMP_PATH . '*.pid') as $filename){
+            $pid = @file_get_contents($filename);
+            if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 9);
+            @unlink($filename);
+        }
     }
 
     /**
@@ -46,7 +66,7 @@ class Http
         global $argv;
         $num = count(glob(TMP_PATH . 'manager_*.pid'));
         @file_put_contents(TMP_PATH . 'manager_'. $num .'.pid', $server->manager_pid);
-        \swoole_set_process_name("Manager[{$num}] process in <{$argv[0]}>");
+        \swoole_set_process_name("Manager[{$num}] process in <". __ROOT__ ."{$argv[0]}>");
         T('__PROCESS')->set($server->manager_pid, [
             'id' => $num,
             'type' => 1,
@@ -161,12 +181,23 @@ class Http
             'get' => property_exists($request, 'get') ? $request->get : [],
             'post' => property_exists($request, 'post') ? $request->post : [],
             'cookie' => property_exists($request, 'cookie') ? $request->cookie : [],
+            'files' => property_exists($request, 'files') ? $request->files : [],
             'input' => $request->rawContent(),
-            'mod_name' => C('APPS.module'),
-            'cnt_name' => C('APPS.controller'),
-            'act_name' => C('APPS.action')
+            'mod_name' => C('HTTP.module'),
+            'cnt_name' => C('HTTP.controller'),
+            'act_name' => C('HTTP.action')
         ];
-        $route = str_replace(C('APPS.ext'), '', trim($data['server']['request_uri'], '/'));
+
+        $route = str_replace(C('HTTP.ext'), '', trim($data['server']['request_uri'], '/'));
+        if(C('APP.subdomain') && isset($request->header['http_host'])){
+            $host = $request->header['http_host'];
+            $data['mod_name'] = substr($host, 0, strpos($host, '.'));
+            if($mod_name = C('APP.subdomain_list.' . $data['mod_name'])){
+                $data['mod_name'] = $mod_name;
+            }
+            $dir = APP_PATH . $data['mod_name'];
+            if(!is_dir($dir))$data['mod_name'] = C('HTTP.module');
+        }
 
         if(!empty($route)){
             $route = explode('/', $route);
@@ -184,22 +215,23 @@ class Http
 
         self::$data = $data;
         \Root::$user = new User($data, $response);
-        self::run($request, $response);
+        self::run($response);
         //回收内存
+        M('__cleanup');
+        D('__cleanup');
         self::$data = null;
         \Root::$user = null;
     }
 
     /**
      * HTTP请求执行
-     * @param $request
      * @param $response
      */
-    Static Public function run($request, &$response)
+    Static Public function run(&$response)
     {
         //检查缓存
         if(C('HTTP.cache_time')){
-            $key = md5(json_encode([$request->server['request_uri'], $_POST, self::$data['input'], $_FILES]));
+            $key = md5(json_encode([self::$data['server']['request_uri'], $_POST, self::$data['input'], $_FILES]));
             if($pagedata = cache('page_' . $key)){
                 if(C('HTTP.gzip'))$response->gzip(C('HTTP.gzip'));
                 $response->end($pagedata);
@@ -211,10 +243,10 @@ class Http
         $params = I('get.param', []);
 
         //实例化控制器,并运行方法
-        $class_name = ucfirst(self::$data['mod_name']) . '\\Controller\\' . ucfirst(self::$data['cnt_name']) . 'Controller';
+        $class_name = ucfirst(self::$data['mod_name']) . "\\Controller\\" . ucfirst(self::$data['cnt_name']) . "Controller";
         if(!isset(\Root::$map[$class_name]) || !in_array(self::$data['act_name'], \Root::$map[$class_name]['methods'])){
             $response->status(404);
-            $response->end('[DeanPHP]404 Not Found!');
+            $response->end('[SSF]404 Not Found!');
             return;
         }
 
@@ -231,17 +263,17 @@ class Http
             \Root::$user->log('INFO: _start() execution finish');
         }
 
-        if(empty($content))$content = ob_get_clean();
+        if(empty($content) || $content === false || $content === true)$content = ob_get_clean();
 
         //记录缓存
         if(C('HTTP.cache_time')){
-            $key = md5(json_encode([$request->server['request_uri'], $_POST, self::$data['input'], $_FILES]));
+            $key = md5(json_encode([self::$data['server']['request_uri'], $_POST, self::$data['input'], $_FILES]));
             cache('page_' . $key, $content, C('HTTP.cache_time'));
         }
 
         if(C('HTTP.gzip'))$response->gzip(C('HTTP.gzip'));
 
-        \Root::$user->sessionSave();
+        \Root::$user->save();
 
         $response->end($content);
         T('__PROCESS')->incr(\Root::$serv->worker_pid, 'sendout');

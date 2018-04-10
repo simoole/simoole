@@ -33,9 +33,11 @@ Class User
     Private $starttime = 0;
     Private $runtime = 0;
 
+    //数据库短连接
+    Public $db_links = [];
+
     //sessionid
-    Private $sessid = null;
-    //session config
+    Public $session = null;
     Private $sess_conf = null;
     //运行日志
     Private $running_time_log = '';
@@ -55,14 +57,17 @@ Class User
         $this->fd = isset($data['fd'])?$data['fd']:null;
 
         $GLOBALS = [];
-        $GLOBALS['MODULE_NAME'] = $data['mod_name'];
-        $GLOBALS['CONTROLLER_NAME'] = $data['cnt_name'];
-        $GLOBALS['ACTION_NAME'] = isset($data['act_name']) ? $data['act_name'] : null;
-        $_SESSION = [];
+        $this->mod_name = $GLOBALS['MODULE_NAME'] = $data['mod_name'];
+        $this->cnt_name = $GLOBALS['CONTROLLER_NAME'] = $data['cnt_name'];
+        $this->act_name = $GLOBALS['ACTION_NAME'] = isset($data['act_name']) ? $data['act_name'] : null;
 
+        $_SESSION = [];
         $this->sess_conf = \Root::$conf['SESSION'];
         if($this->sess_conf['AUTO_START']){
-            $this->sessionStart();
+            $sessid = null;
+            if(isset($_COOKIE['PHPSESSID']) && is_string($_COOKIE['PHPSESSID']) && strlen($_COOKIE['PHPSESSID']) == 40)$sessid = $_COOKIE['PHPSESSID'];
+            $this->session = new Session($sessid);
+            $_SESSION = $this->session->getData();
         }
 
         //记录开始访问日志
@@ -71,7 +76,28 @@ Class User
         $gtime = time() - strtotime(gmdate('Y-m-d H:i:s'));
         $gdate = [floor($gtime / 3600), floor(($gtime % 3600)/60)];
         $gdateStr = ($gdate[0] < 10 ? '0' . $gdate[0] : $gdate[0]) . ':' . ($gdate[1] < 10 ? '0' . $gdate[1] : $gdate[1]);
-        $this->running_time_log = "\n[ {$date}+{$gdateStr} ] " . $this->server['remote_addr'] . ' /' . $this->mod_name . '/' . $this->cnt_name . '/' . $this->act_name . C('APPS.ext') . PHP_EOL;
+        if(!empty($this->act_name))
+            $path = $this->mod_name . '/' . $this->cnt_name . '/' . $this->act_name . C('HTTP.ext') . PHP_EOL;
+        else
+            $path = $this->mod_name . '/' . $this->cnt_name . C('HTTP.ext') . PHP_EOL;
+        $this->running_time_log = "\n[ {$date}+{$gdateStr} ] " . $this->server['remote_addr'] . ' /' . $path;
+    }
+
+    Public function __wakeup()
+    {
+        $_SESSION = $this->session->getData();
+
+        //记录开始访问日志
+        $date = date('Y-m-d H:i:s');
+        $this->starttime = $this->runtime = round(microtime(true) * 10000);
+        $gtime = time() - strtotime(gmdate('Y-m-d H:i:s'));
+        $gdate = [floor($gtime / 3600), floor(($gtime % 3600)/60)];
+        $gdateStr = ($gdate[0] < 10 ? '0' . $gdate[0] : $gdate[0]) . ':' . ($gdate[1] < 10 ? '0' . $gdate[1] : $gdate[1]);
+        if(!empty($this->act_name))
+            $path = $this->mod_name . '/' . $this->cnt_name . '/' . $this->act_name . C('HTTP.ext') . PHP_EOL;
+        else
+            $path = $this->mod_name . '/' . $this->cnt_name . C('HTTP.ext') . PHP_EOL;
+        $this->running_time_log = "\n[ {$date}+{$gdateStr} ] " . $this->server['remote_addr'] . ' /' . $path;
     }
 
     /**
@@ -85,78 +111,16 @@ Class User
     }
 
     /**
-     * 保存$_SESSION中的数据
+     * 保存会话数据
      */
-    Public function sessionSave(){
-        if(!empty($this->sessid)){
-            if($this->response){
-                $this->response->cookie('PHPSESSID', $this->sessid, $this->sess_conf['EXPIRE'] + time(), $this->sess_conf['PATH'], $this->sess_conf['DOMAIN']?:'');
-                T('__SESSION')->set($this->sessid, [
-                    'timeout' => $this->sess_conf['EXPIRE'] + time(),
-                    'data' => $_SESSION
-                ]);
-            }else{
-                T('__SESSION')->set($this->sessid, [
-                    'data' => $_SESSION
-                ]);
+    Public function save(){
+        if(is_object($this->session)){
+            if(is_object($this->response)){
+                $this->response->cookie('PHPSESSID', $this->session->getId(), 0, $this->sess_conf['PATH'], $this->sess_conf['DOMAIN']?:'');
             }
-            $_SESSION = [];
-        }elseif(!empty($_SESSION)){
-            trigger_error('没有开启SESSION无法使用$_SESSION!', E_USER_WARNING);
         }
         $this->running_time_log .= 'INFO: --END-- [TotalRunningTime: '. (round(microtime(true)*10000) - $this->starttime)/10000 .'s]' . PHP_EOL;
         L($this->running_time_log, 'client', $this->mod_name);
     }
 
-    /**
-     * 开启SESSION
-     * @param string $sessid SESSION ID 用于断开重连或跨通道应用
-     */
-    Public function sessionStart(string $sess_id = null)
-    {
-        $sessid = $sess_id?:$this->sessid;
-        $_SESSION = [];
-        if (empty($sessid)) {
-            if(array_key_exists('PHPSESSID', $this->cookie)){
-                $sessid = $this->cookie['PHPSESSID'];
-            }else
-                $sessid = createCode(40, false);
-        }
-        //判断sessid是否存在
-        $sessDatas = T('__SESSION')->get($sessid);
-        if($sessDatas && isset($sessDatas['data']) && isset($sessDatas['timeout'])){
-            //判断是否session过期
-            if($sessDatas['timeout'] < time()){
-                T('__SESSION')->del($sessid);
-                $sessid = createCode(40, false);
-            }else{
-                $_SESSION = $sessDatas['data'];
-            }
-        }
-
-        $this->sessid = $sessid;
-
-        return $sessid;
-    }
-
-    /**
-     * 返回sessionid
-     */
-    Public function sessionId(string $sess_id = null)
-    {
-        if(!empty($sess_id) && is_string($sess_id)){
-            if(!empty($_SESSION))trigger_error('sessionId()必须在sessionStart()之前使用!');
-            $this->sessid = $sess_id;
-            return true;
-        }else
-            return $this->sessid;
-    }
-
-    /**
-     * 检测sess_id是否有效
-     * @param $sess_id
-     */
-    Public function sessionHas(string $sess_id){
-        return T('__SESSION')->exist($sess_id);
-    }
 }

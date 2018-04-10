@@ -14,6 +14,8 @@ Class Table
     Static Private $sizes = [];
     Private $_table = null;
     Private $tablename = null;
+    //内存表默认保存时间12小时
+    Private $expire = 12 * 60 * 60;
 
     /**
      * 创建内存表
@@ -26,10 +28,15 @@ Class Table
         foreach($conf as $tablename => $columns){
             if(!is_array($columns) || empty($columns) || !is_string($tablename))continue;
             if(isset(self::$table[$tablename]))continue;
-            self::$conf[$tablename] = $columns;
             $total = isset($columns['__total']) ? $columns['__total'] : 10;
+            if($total <= 0)continue;
+            self::$conf[$tablename] = $columns;
             unset($columns['__total']);
             self::$table[$tablename] = new \swoole_table(pow(2, $total));
+            if(isset($columns['__expire'])){
+                if($columns['__expire'] > 0)self::$table[$tablename]->column('__datetime', \swoole_table::TYPE_INT, 5);
+                unset($columns['__expire']);
+            }
             self::$sizes[$tablename] = 0;
             foreach($columns as $name => $col){
                 $type = \swoole_table::TYPE_STRING;
@@ -68,18 +75,13 @@ Class Table
 
     /**
      * 清空所有内存表
+     * @param bool $onlyTimeout 是否仅清除超时的记录
      * @return boolean 是否成功
      */
-    Static Public function clearAll()
+    Static Public function clearAll($onlyTimeout = true)
     {
-        foreach(self::$table as $table){
-            $keys = [];
-            foreach($table as $key => $row){
-                $keys[] = $key;
-            }
-            foreach($keys as $key){
-                $table->del($key);
-            }
+        foreach(self::$table as $tablename => $table){
+            T($tablename)->clear($onlyTimeout);
         }
         return true;
     }
@@ -101,8 +103,9 @@ Class Table
      * 移除所有内存表
      * @return bool
      */
-    Static Public function removeAll(){
-        self::clearAll();
+    Static Public function removeAll()
+    {
+        self::clearAll(false);
         self::$table = [];
         return true;
     }
@@ -116,17 +119,29 @@ Class Table
         if(isset(self::$table[$tablename])){
             $this->tablename = $tablename;
             $this->_table = self::$table[$tablename];
+            $expire = C('MEMORY_TABLE.' . $tablename . '.__expire');
+            if(is_numeric($expire))$this->expire = $expire;
         }else{
-            trigger_error($tablename . '内存表不存在!', E_USER_ERROR);
+            trigger_error($tablename . '内存表不存在!', E_USER_WARNING);
         }
+    }
+
+    /**
+     * 获取内存表总行数
+     * @return int
+     */
+    Public function count()
+    {
+        return count($this->_table);
     }
 
     /**
      * 获取内存表数据
      * @param string $key key
+     * @param string $field 字段名
      * @return mixed
      */
-    Public function get(string $key)
+    Public function get(string $key, string $field = null)
     {
         $data = $this->_table->get($key);
         if(!$data)return $data;
@@ -138,6 +153,10 @@ Class Table
             } else {
                 $datas[$name] = $value;
             }
+        }
+        if(!empty($field)){
+            if(!isset($datas[$field]))return false;
+            return $datas[$field];
         }
         return $datas;
     }
@@ -154,14 +173,18 @@ Class Table
         $datas = [];
         foreach($data as $name => $value){
             if(isset($columns[$name])){
-                $json = json_encode($value);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $datas[$name] = $json;
-                } else {
-                    $datas[$name] = $value;
+                $_data = $value;
+                if(is_array($value)){
+                    $_data = json_encode($value);
                 }
+                $types = explode('(', trim($columns[$name], ')'));
+                if((strtolower($types[0]) == 'int' && $types[1] < strlen(decbin($_data))/8) || (strtolower($types[0]) == 'string' && $types[1] < strlen($_data))){
+                    return false;
+                }
+                $datas[$name] = $_data;
             }
         }
+        if($this->expire > 0)$datas['__datetime'] = time() + $this->expire;
         return $this->_table->set($key, $datas);
     }
 
@@ -170,8 +193,9 @@ Class Table
      * @param string $key
      * @return mixed
      */
-    Public function exist(string $key)
+    Public function exist($key)
     {
+        if(empty($key))return false;
         return $this->_table->exist($key);
     }
 
@@ -200,7 +224,7 @@ Class Table
     }
 
     /**
-     * 删除单挑
+     * 删除单条
      * @param string $key
      * @return mixed
      */
@@ -211,13 +235,15 @@ Class Table
 
     /**
      * 清空内存表
+     * @param bool $onlyTimeout 是否仅删除超时的内存表记录
      * @return boolean 是否成功
      */
-    Public function clear()
+    Public function clear($onlyTimeout = true)
     {
         $keys = [];
+        $time = time();
         foreach($this->_table as $key => $row){
-            $keys[] = $key;
+            if(!$onlyTimeout || (isset($row['__datetime']) && $row['__datetime'] < $time))$keys[] = $key;
         }
         foreach($keys as $key){
             $this->del($key);
@@ -231,10 +257,34 @@ Class Table
      * @return bool
      */
     Public function each(callable $fun){
-        if(gettype($fun) != 'object' || get_class($fun) != 'Closure')return false;
         foreach($this->_table as $key => $row){
             $fun($key, $row);
         }
         return true;
+    }
+
+    /**
+     * 内存表加行锁
+     * @param string $key
+     */
+    Public function lock(string $key){
+        lock($this->tablename . '_' . $key);
+    }
+
+    /**
+     * 内存表加行锁，非阻塞
+     * @param string $key
+     * @return bool 是否抢锁成功
+     */
+    Public function trylock(string $key){
+        return lock($this->tablename . '_' . $key, 1);
+    }
+
+    /**
+     * 解锁
+     * @param string $key
+     */
+    Public function unlock(string $key){
+        unlock($this->tablename . '_' . $key);
     }
 }

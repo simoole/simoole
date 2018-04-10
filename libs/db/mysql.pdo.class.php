@@ -4,10 +4,12 @@ namespace Root\Db;
 
 class mysqlPDO
 {
-	//用于保存PDO连接
-	private $link = null;
+	//用于保存PDO长连接
+	static private $links = [];
+	public $link = null;
 	//用于保存数据库对象
 	private $dbname = null;
+	private $_dbname = null;
 	//用于保存table
 	private $table = null;
 	private $_table = null;
@@ -32,31 +34,74 @@ class mysqlPDO
 	//储存数据库配置
 	private $config = null;
 
+	//初始化数据库连接
+	static public function _initialize(array $config, string $name = null)
+    {
+        if(!$conn = self::_connect($config))return false;
+        if(!is_string($name))$name = 'DB_CONF';
+        self::$links[$name] = $conn;
+        return $conn;
+    }
+
+    /**
+     * 连接数据库
+     * @param array $config 数据库配置
+     * @param int $is_pool 是否启用长连接
+     * @return bool|\PDO
+     */
+    static private function _connect(array $config)
+    {
+        $dsn = "mysql:dbname={$config['DB_NAME']};host={$config['DB_HOST']};port={$config['DB_PORT']}";
+        try {
+            $param = [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION
+            ];
+            if (!empty($config['DB_CHARSET'])) {
+                $param[\PDO::MYSQL_ATTR_INIT_COMMAND] = 'SET NAMES ' . $config['DB_CHARSET'];
+            }
+            if(!empty($config['DB_POOL']))$param[\PDO::ATTR_PERSISTENT] = true;
+            $conn = new \PDO($dsn, $config['DB_USER'], $config['DB_PASS'], $param);
+        } catch (\PDOException $e) {
+            trigger_error('数据库连接失败！原因:'. $e->getMessage(), E_USER_WARNING);
+            return false;
+        }
+        return $conn;
+    }
+
 	/**
 	 * 数据库连接
 	 */
-	public function __construct(array $config)
+	public function __construct(array $config, string $name)
 	{
 		//获取数据库配置
 		$this->config = $config;
-		
-		if(!empty($this->config) && count($this->config)>0){
-			static $mysqllink = [];
-			$worker_id = \Root::$serv->worker_id;
-			if(!isset($mysqllink[$worker_id])){
-				$dsn = "mysql:dbname={$this->config['DB_NAME']};host={$this->config['DB_HOST']};port={$this->config['DB_PORT']}";
-				try {
-					$mysqllink[$worker_id] = new \PDO($dsn, $this->config['DB_USER'], $this->config['DB_PASS']);
-					$mysqllink[$worker_id]->setAttribute(\PDO::ATTR_ERRMODE,\PDO::ERRMODE_EXCEPTION);
-				} catch (PDOException $e) {
-					trigger_error('数据库连接失败！原因:'. $e->getMessage(), E_USER_ERROR);
-				}
-				$mysqllink[$worker_id]->query("set names {$this->config['DB_CHARSET']};");
-			}
-			$this->link = $mysqllink[$worker_id];
+		if(!empty($this->config)){
+            $this->_dbname = $name;
+		    if(empty($config['DB_POOL'])) {
+                if (!is_object(\Root::$user)) {
+                    trigger_error('数据库短连接无法异步使用，若需要异步请启用连接池！', E_USER_WARNING);
+                    return;
+                }
+                if (isset(\Root::$user->db_links[$name])) {
+                    $this->link = \Root::$user->db_links[$name];
+                } else {
+                    if (!$conn = self::_connect($config)) return;
+                    $this->link = $conn;
+                    \Root::$user->db_links[$name] = $conn;
+                }
+            }elseif(isset(self::$links[$name])){
+                $this->link = self::$links[$name];
+            }else{
+                if($conn = self::_connect($config)){
+                    $this->link = $conn;
+                    self::$links[$name] = $conn;
+                }else
+                    trigger_error('数据库连接异常，请检查config文件夹下的database.ini.php文件配置！', E_USER_WARNING);
+            }
 		}else{
-			trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
-		}
+		    $this->link = null;
+            trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
+        }
 	}
 
 	/**
@@ -67,7 +112,7 @@ class mysqlPDO
 		$this->table = $this->config['DB_PREFIX'] . $table;
 		$this->_table = $table;
 		if(preg_match('/^[a-zA-Z]+\w*$/', $asWord))$this->asWord = $asWord;
-		$rs = $this->link->query("SHOW COLUMNS FROM  `{$this->table}`");
+		$rs = $this->query("SHOW COLUMNS FROM  `{$this->table}`");
 		if(!$rs){
 			return false;
 		}
@@ -99,7 +144,7 @@ class mysqlPDO
 			$field = $row['Field'];
 			if($field == $name)return $this->$field = $value;
 		}
-		trigger_error("在数据表 {$this->dbname}.{$this->table} 中没有字段 {$name}", E_USER_ERROR);
+		trigger_error("在数据表 {$this->dbname}.{$this->table} 中没有字段 {$name}", E_USER_WARNING);
 		return false;
 	}
 
@@ -124,7 +169,9 @@ class mysqlPDO
 					elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['in', 'not in'])){
 						if(is_array($val[1]))$val[1] = "'" . join("','", $val[1]) . "'";
 						$arr[] = "({$tablename}.`{$key}` {$val[0]} ({$val[1]}))";
-					}elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['=', '!=', '>', '<', '<>', 'like', 'not', 'not like']))
+					}elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['between', 'not between']) && count($val) == 3)
+                        $arr[] = "({$tablename}.`{$key}` {$val[0]} '{$val[1]}' and '{$val[2]}')";
+					elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like']))
 						$arr[] = "({$tablename}.`{$key}` {$val[0]} '{$val[1]}')";
 					else{
 						$char = ' and ';
@@ -137,17 +184,19 @@ class mysqlPDO
 							if(is_array($v)){
 								if(is_string($v[0]) && strtolower($v[0]) === 'exp')
 									$_arr[] = "({$tablename}.`{$key}` {$v[1]})";
-								elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['in', 'not in'])){
-									if(is_array($v[1]))$v[1] = "'" . join("','", $v[1]) . "'";
-									$_arr[] = "({$tablename}.`{$key}` {$v[0]} ({$v[1]}))";
-								}elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['=', '!=', '>', '<', '<>', 'like', 'not', 'not like']))
+								elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['in', 'not in'])) {
+                                    if (is_array($v[1])) $v[1] = "'" . join("','", $v[1]) . "'";
+                                    $_arr[] = "({$tablename}.`{$key}` {$v[0]} ({$v[1]}))";
+                                }elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['between', 'not between']) && count($v) == 3)
+                                    $_arr[] = "({$tablename}.`{$key}` {$v[0]} '{$v[1]}' and '{$v[2]}')";
+								elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like']))
 									$_arr[] = "({$tablename}.`{$key}` {$v[0]} '{$v[1]}')";
 							}else{
 								$_arr[] = "({$tablename}.`{$key}` = ?)";
 								$this->params[] = (string)$v;
 							}
 						}
-						$arr[] = "(". join($char, $_arr) .")";
+						if(!empty($_arr)) $arr[] = "(". join($char, $_arr) .")";
 					}
 				}elseif($val === null)
 					$arr[] = "({$tablename}.`{$key}` is null)";
@@ -171,12 +220,12 @@ class mysqlPDO
 		if(is_array($order)){
 			foreach($order as $key => $val){
 				if(empty($key))
-					$this->order[] = "{$tablename}.{$val} {$asc}";
+					$this->order[] = "{$tablename}.`{$val}` {$asc}";
 				else
-					$this->order[] = "{$tablename}.{$key} {$val}";
+					$this->order[] = "{$tablename}.`{$key}` {$val}";
 			}
 		}else
-			$this->order[] = "{$tablename}.{$order} {$asc}";
+			$this->order[] = "{$tablename}.`{$order}` {$asc}";
 	}
 
 	/**
@@ -269,27 +318,31 @@ class mysqlPDO
 	 * @param string $field
 	 * @param array $having array('字段' => array('比较字符', '值', '字段的作用函数'))
 	 */
-	public function group(string $field, array $having = [])
+	public function group(string $field, array $having = [], string $table = null)
 	{
-		if($this->_filter($field) !== false){
-			$data = [];
-			$tablename = $this->asWord ? : '`'.$this->table.'`';
-			foreach($having as $key => $val){
-				if(is_string($val)){
-					$data[] = "({$tablename}.`{$key}`='{$val}')";
-				}else{
-					$count = count($val);
-					if($count == 2)
-						$data[] = "({$tablename}.`{$key}`{$val[0]}'{$val[1]}')";
-					elseif($count == 3)
-						$data[] = "({$val[2]}({$tablename}.`{$key}`){$val[0]}'{$val[1]}')";
-				}
-			}
-			if(!empty($data))
-				$this->group = "group by `{$field}` having " . join(' and ', $data);
-			else
-				$this->group = "group by `{$field}`";
+		if(empty($field))return false;
+		if(strpos($field, '.') > 0){
+			$arr = explode('.', $field);
+			$table = $arr[0];
+			$field = $arr[1];
 		}
+		$tablename = $table?:($this->asWord?:'`'.$this->table.'`');
+		$data = [];
+		foreach($having as $key => $val){
+			if(is_string($val)){
+				$data[] = "({$tablename}.`{$key}`='{$val}')";
+			}else{
+				$count = count($val);
+				if($count == 2)
+					$data[] = "({$tablename}.`{$key}`{$val[0]}'{$val[1]}')";
+				elseif($count == 3)
+					$data[] = "({$val[2]}({$tablename}.`{$key}`){$val[0]}'{$val[1]}')";
+			}
+		}
+		if(!empty($data))
+			$this->group = "group by {$tablename}.`{$field}` having " . join(' and ', $data);
+		else
+			$this->group = "group by {$tablename}.`{$field}`";
 	}
 
 	/**
@@ -311,7 +364,7 @@ class mysqlPDO
 		$group = !empty($this->group) ? $this->group : '';
 		$order = !empty($this->order) ? 'order by ' . join(',', $this->order) : '';
 		$limit = !empty($this->limit) ? $this->limit : '';
-		$this->sql = "Select {$field} from `{$this->table}` {$this->asWord} {$join} {$where} {$group} {$order} {$limit};";
+		$this->sql = "Select {$field} from `{$this->table}` {$this->asWord} {$join} {$where} {$group} {$order} {$limit} ";
 		$this->_reset();
 		return $this->sql;
 	}
@@ -328,6 +381,13 @@ class mysqlPDO
 			$_sql = preg_replace('/\?/', "'".$val."'", $_sql, 1);
 		}
 
+		if(empty($this->link)){
+            if(self::_initialize($this->config, $this->_dbname) !== false)return $this->query($sql);
+            $this->params = [];
+            trigger_error('数据库连接异常！', E_USER_WARNING);
+            return false;
+        }
+
 		try{
 			//开始执行查询
 			if(empty($this->params))
@@ -337,10 +397,18 @@ class mysqlPDO
 				$rs->execute($this->params);
 			}
 		}catch(\PDOException $e){
+            if(strpos($e->getMessage(), 'gone away') !== false || strpos($e->getMessage(), 'Error while sending QUERY packet') !== false){
+                //断线重连
+                $this->link = self::$links[$this->_dbname] = null;
+                if(($conn = self::_connect($this->config)) !== false){
+                    $this->link = self::$links[$this->_dbname] = $conn;
+                    return $this->execute($sql);
+                }
+            }
 			//异常捕获
 			$err = $e->errorInfo;
 			$this->params = [];
-			\Root::error("SQL查询出错！", ['content' => "错误原因：[{$err[0]}]{$err[2]}", 'sql' => $_sql], E_USER_WARNING);
+            trigger_error("SQL查询出错！错误原因：[{$err[0]}]{$err[2]}", E_USER_WARNING);
 			return false;
 		}
 		$this->params = [];
@@ -356,7 +424,7 @@ class mysqlPDO
 	public function execute(string $sql, bool $checkTmp = true)
 	{
 		$_sql = $sql;
-		foreach($this->params as $name => $val){
+		foreach($this->params as $val){
 			if(strlen($val) > 200)$val = preg_replace('/\s/m', ' ', substr($val, 0, 200) . '...');
 			$_sql = preg_replace('/\?/', "'".$val."'", $_sql, 1);
 		}
@@ -369,21 +437,37 @@ class mysqlPDO
 				$rs = $rs->execute($this->params);
 			}
 		}catch(\PDOException $e){
+            if(strpos($e->getMessage(), 'gone away') !== false || strpos($e->getMessage(), 'Error while sending QUERY packet') !== false){
+                //断线重连
+                $this->link = self::$links[$this->_dbname] = null;
+                if(($conn = self::_connect($this->config)) !== false){
+                    $this->link = self::$links[$this->_dbname] = $conn;
+                    return $this->execute($sql);
+                }
+            }
 			$err = $e->errorInfo;
 			$this->params = [];
-			\Root::error("SQL执行出错！", ['content' => "错误原因：[{$err[0]}]{$err[2]}", 'sql' => $_sql], E_USER_WARNING);
+            trigger_error("SQL执行出错！错误原因：[{$err[0]}]{$err[2]}", E_USER_WARNING);
 			return false;
 		}
 
 		if($checkTmp){
 			$table = $this->_table;
-			swoole_event_defer(function() use ($table){
+			if(\Root::$serv->taskworker){
 				foreach(\Root::$worker->tmpTables as $tablename => $tmpTable){
 					if(in_array($table, $tmpTable['tables']) && !in_array($tablename, \Root::$tmpTables)){
 						\Root::$worker->send('updateTmpTables', $tablename);
 					}
 				}
-			});
+			}else{
+				swoole_event_defer(function() use ($table){
+					foreach(\Root::$worker->tmpTables as $tablename => $tmpTable){
+						if(in_array($table, $tmpTable['tables']) && !in_array($tablename, \Root::$tmpTables)){
+							\Root::$worker->send('updateTmpTables', $tablename);
+						}
+					}
+				});
+			}
 		}
 
 		$this->params = [];
@@ -391,12 +475,39 @@ class mysqlPDO
 		return $rs;
 	}
 
+    /**
+     * 开启事务
+     * @return mixed
+     */
+    Public function beginTransaction()
+    {
+        return $this->link->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * @return mixed
+     */
+    Public function commit()
+    {
+        return $this->link->commit();
+    }
+
+    /**
+     * 回滚事务
+     * @return mixed
+     */
+    Public function rollBack()
+    {
+        return $this->link->rollBack();
+    }
+
 	/**
 	 * 查询记录集
 	 * @param boolean $cache 是否使用缓存（效率较低的语句建议开启缓存）
 	 * @return array 结果集数组
 	 */
-	public function select(bool $cache = false)
+	public function select(bool $cache = false, bool $islock = false)
 	{
 		$sql = $this->_sql();
 		if($cache){
@@ -406,6 +517,7 @@ class mysqlPDO
 			}
 			$sql = "Select * from `{$this->config['DB_PREFIX']}tmp_{$tablename}`";
 		}
+		if($islock)$sql .= ' for update;';
 		$rs = $this->query($sql);
 		if(is_bool($rs)){
 			//异常拦截
@@ -427,10 +539,10 @@ class mysqlPDO
 	 * 查询单条记录
 	 * @param boolean $cache 是否使用缓存（效率较低的语句建议开启缓存）
 	 */
-	public function getone(bool $cache = false)
+	public function getone(bool $cache = false, bool $islock = false)
 	{
 		$this->limit(1);
-		$rs = $this->select($cache);
+		$rs = $this->select($cache, $islock);
 		if(empty($rs))return false;
 		else return $rs[0];
 	}
@@ -482,7 +594,7 @@ class mysqlPDO
 				unset($this->$field);
 			}
 		}
-		
+
 		//组装数据
 		foreach($dataAll as $datas){
 			$this->_filter($datas);
@@ -490,30 +602,29 @@ class mysqlPDO
 			$arr = array_keys($datas);
 			if(empty($arrKey))$arrKey = $arr;
 			if($arrKey != $arr)continue;
-			$arrKey = $arr;
-			$arrVal[] = $datas;
+			$arrVal[] = array_values($datas);
 		}
 
 		//记录回滚事件
 		$this->link->beginTransaction();
 		//组装SQL语句
-		$this->sql = "Insert into `{$this->table}` {$this->asWord} (`". join('`, `', $arrKey) ."`) values (:{". join('}, :{', $arrKey) ."});";
+		$this->sql = "Insert into `{$this->table}` {$this->asWord} (`". join('`, `', $arr) ."`) values (". join(", ", array_fill(0, count($arr), '?')) .");";
 		try{
 			$st = $this->link->prepare($this->sql);
 			foreach($arrVal as $arr){
-				$st->execute($arr);
 				$sql = $this->sql;
 				foreach($arr as $name => $val){
 					if(strlen($val) > 200)$val = preg_replace('/\s/m', ' ', substr($val, 0, 200) . '...');
-					$sql = str_replace(':{'.$name.'}', "'".$val."'", $sql);
+					$sql = preg_replace('/\?/', "'".$val."'", $sql, 1);
 				}
 				if(\Root::$user)\Root::$user->log('EXECUTE: '. $sql);
+				$st->execute($arr);
 			}
 			$this->link->commit();
 		}catch(\PDOException $e){
 			$this->link->rollBack();
 			$err = $e->errorInfo;
-			\Root::error('INSERTALL语句出错!', ['content' => "错误原因：[{$err[0]}]{$err[2]}", 'sql' => $sql], E_USER_WARNING);
+            trigger_error("INSERTALL语句出错！错误原因：[{$err[0]}]{$err[2]}", E_USER_WARNING);
 			return false;
 		}
 		$this->_reset();
@@ -553,9 +664,8 @@ class mysqlPDO
 					case 'exp':$arr[] = "`{$key}`={$v}";break;
 					default:continue;
 				}
-			}elseif(preg_match('/[\+\-\*\/][1-9][0-9]*/', $val))
-				$arr[] = "`{$key}`=`{$key}`{$val}";
-			else{
+			}else{
+                $val = addslashes($val);
 				$arr[] = "`{$key}`='{$val}'";
 			}
 		}
@@ -659,7 +769,7 @@ class mysqlPDO
 			$this->link->exec("CREATE TEMPORARY TABLE `{$this->config['DB_PREFIX']}{$tablename}` {$sql}");
 		}catch(\PDOException $e){
 			$err = $e->errorInfo;
-			\Root::error('CREATE TEMPORARY 语句出错！', ['content' => "错误原因：[{$err[0]}]{$err[2]}", 'sql' => $this->sql], E_USER_WARNING);
+            trigger_error("CREATE TEMPORARY 语句出错！错误原因：[{$err[0]}]{$err[2]}", E_USER_WARNING);
 			return false;
 		}
 

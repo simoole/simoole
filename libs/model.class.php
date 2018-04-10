@@ -9,29 +9,39 @@ namespace Root;
 
 Class Model {
 
-    Public $db = [];
+    Public $db = null;
     Public $config = null;
     Public $dbname = null;
+
+    /**
+     * 初始化数据库连接池
+     */
+    Static Public function _initialize()
+    {
+        $configs = \Root::loadFiles(COMMON_PATH . 'config/database.ini.php', true);
+        foreach($configs as $name => $conf){
+            //是否启用连接池
+            if(!isset($conf['DB_POOL']) || !$conf['DB_POOL'])continue;
+            $type = $conf['DB_TYPE']?:'mysql';
+            $classname = "\\Root\\Db\\{$type}PDO";
+            if(is_string($name))
+                $classname::_initialize($conf, $name);
+            else
+                $classname::_initialize($conf);
+        }
+    }
 
     Public function __construct(string $dbname = null)
     {
         $this->config = \Root::$conf[$dbname?:'DB_CONF'];
         if(empty($this->config) && !is_array($this->config)){
-            \Root::error('您的数据库信息尚未配置', '请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_ERROR);
+            trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
         }else{
-            if(isset($this->config['DB_NAME'])){
-                $this->dbname = $dbname === null ? $this->config['DB_NAME'] : $dbname;
-            }elseif (($dbname !== null && isset($this->config[$dbname]['DB_NAME'])) || ($dbname === null && isset($this->config[0]['DB_NAME']))){
-                $this->dbname = $dbname === null ? $this->config[0]['DB_NAME'] : $dbname;
-                $this->config = $this->config[$dbname];
-            }
-            if(!array_key_exists($this->dbname, $this->db)){
-                if($this->config['COROUTINE'])
-                    $classname = "\\Root\\Db\\{$this->config['DB_TYPE']}Coroutine";
-                else
-                    $classname = "\\Root\\Db\\{$this->config['DB_TYPE']}PDO";
-                $this->db[$this->dbname] = new $classname($this->config);
-            }
+            $this->dbname = isset($this->config['DB_NAME']) ? $this->config['DB_NAME'] : $dbname;
+            $dbname = $dbname ? : 'DB_CONF';
+            $type = $this->config['DB_TYPE']?:'mysql';
+            $classname = "\\Root\\Db\\{$type}PDO";
+            $this->db = new $classname($this->config, $dbname);
         }
     }
 
@@ -52,7 +62,7 @@ Class Model {
             return '_' . strtolower($result[0]);
         }, $table);
         $table = strtolower($table);
-        if($this->db[$this->dbname]->table($table, $asWord)){
+        if($this->db->table($table, $asWord)){
             return $this;
         }else{
             return false;
@@ -66,7 +76,7 @@ Class Model {
      */
     public function __get(string $name)
     {
-        return $this->db[$this->dbname]->$name;
+        return $this->db->$name;
     }
 
     /**
@@ -77,7 +87,7 @@ Class Model {
      */
     public function __set(string $name, $value = null)
     {
-        return $this->db[$this->dbname]->$name = $value;
+        return $this->db->$name = $value;
     }
 
     /**
@@ -88,7 +98,7 @@ Class Model {
      */
     public function field($field, string $table = null)
     {
-        $this->db[$this->dbname]->field($field, $table);
+        $this->db->field($field, $table);
         return $this;
     }
 
@@ -99,7 +109,7 @@ Class Model {
      */
     public function where($condition, string $table = null)
     {
-        $this->db[$this->dbname]->where($condition, $table);
+        $this->db->where($condition, $table);
         return $this;
     }
 
@@ -111,7 +121,7 @@ Class Model {
      */
     public function group($field, array $having = [])
     {
-        $this->db[$this->dbname]->group($field, $having);
+        $this->db->group($field, $having);
         return $this;
     }
 
@@ -124,7 +134,7 @@ Class Model {
      */
     public function join(string $table, array $condition = [], string $type = 'inner')
     {
-        $this->db[$this->dbname]->join($table, $condition, $type);
+        $this->db->join($table, $condition, $type);
         return $this;
     }
 
@@ -141,7 +151,7 @@ Class Model {
             $table = $arr[0];
             $order = $arr[1];
         }
-        $this->db[$this->dbname]->order($order, $asc, $table);
+        $this->db->order($order, $asc, $table);
         return $this;
     }
 
@@ -153,29 +163,39 @@ Class Model {
      */
     public function limit($limit, int $length = null)
     {
-        $this->db[$this->dbname]->limit($limit, $length);
+        $this->db->limit($limit, $length);
         return $this;
     }
 
     /**
      * 查询记录集
-     * @param boolean $cache 是否使用缓存（效率较低的语句建议开启缓存）
+     * @param  int $cache 是否使用缓存（效率较低的语句建议开启缓存） 0-不使用 1-使用 2-上锁
      * @return array 结果集数组
      */
-    public function select(bool $cache = false)
+    public function select(int $cache = 0)
     {
-        $rs = $this->db[$this->dbname]->select($cache);
+        if($cache == 1)
+            $rs = $this->db->select(true);
+        elseif($cache == 2)
+            $rs = $this->db->select(false, true);
+        else
+            $rs = $this->db->select();
         return $rs;
     }
 
     /**
      * 查询单条记录
-     * @param boolean $cache 是否使用缓存（效率较低的语句建议开启缓存）
+     * @param int $cache 是否使用缓存（效率较低的语句建议开启缓存） 0-不使用 1-使用 2-上锁
      * @return array 结果集数组
      */
-    public function find(bool $cache = false)
+    public function getone(int $cache = 0)
     {
-        $rs = $this->db[$this->dbname]->getone($cache);
+        if($cache == 1)
+            $rs = $this->db->getone(true);
+        elseif($cache == 2)
+            $rs = $this->db->getone(false, true);
+        else
+            $rs = $this->db->getone();
         return $rs;
     }
 
@@ -193,16 +213,16 @@ Class Model {
             $table = $arr[0];
             $name = $arr[1];
         }
-        $this->db[$this->dbname]->field($name, $table);
+        $this->db->field($name, $table);
         if(!$is_array){
-            $rs = $this->db[$this->dbname]->getone(false);
+            $rs = $this->db->getone(false);
             if(isset($rs[$name])){
                 return $rs[$name];
             }else{
                 return false;
             }
         }else{
-            $rs = $this->db[$this->dbname]->select(false);
+            $rs = $this->db->select(false);
             $data = [];
             foreach($rs as $row){
                 if(isset($row[$name])){
@@ -221,9 +241,9 @@ Class Model {
      * @param bool $return 是否返回插入的ID
      * @return array
      */
-    public function add(array $datas = [], bool $return = false)
+    public function insert(array $datas = [], bool $return = false)
     {
-        $rs = $this->db[$this->dbname]->insert($datas, $return);
+        $rs = $this->db->insert($datas, $return);
         return $rs;
     }
 
@@ -232,9 +252,9 @@ Class Model {
      * @param array $dataAll 要插入的数据数组
      * @return array
      */
-    public function addAll(array $dataAll)
+    public function insertAll(array $dataAll)
     {
-        $rs = $this->db[$this->dbname]->insertAll($dataAll);
+        $rs = $this->db->insertAll($dataAll);
         return $rs;
     }
 
@@ -243,9 +263,9 @@ Class Model {
      * @param array $datas 要更新的数据数组
      * @return array
      */
-    public function save(array $datas = [])
+    public function update(array $datas = [])
     {
-        $rs = $this->db[$this->dbname]->update($datas);
+        $rs = $this->db->update($datas);
         return $rs;
     }
 
@@ -257,7 +277,7 @@ Class Model {
      */
     public function delete(int $limit = null, int $length = null)
     {
-        $rs = $this->db[$this->dbname]->delete($limit, $length);
+        $rs = $this->db->delete($limit, $length);
         return $rs;
     }
 
@@ -268,7 +288,7 @@ Class Model {
      */
     public function count(string $field = null)
     {
-        $rs = $this->db[$this->dbname]->fun('count', $field ?: '*');
+        $rs = $this->db->fun('count', $field ?: '*');
         return $rs;
     }
 
@@ -279,7 +299,7 @@ Class Model {
      */
     public function sum(string $field = null)
     {
-        $rs = $this->db[$this->dbname]->fun('sum', $field ?: '*');
+        $rs = $this->db->fun('sum', $field ?: '*');
         return $rs;
     }
 
@@ -290,7 +310,7 @@ Class Model {
      */
     public function avg(string $field = null)
     {
-        $rs = $this->db[$this->dbname]->fun('avg', $field ?: '*');
+        $rs = $this->db->fun('avg', $field ?: '*');
         return $rs;
     }
 
@@ -301,7 +321,7 @@ Class Model {
      */
     public function min(string $field = null)
     {
-        $rs = $this->db[$this->dbname]->fun('min', $field ?: '*');
+        $rs = $this->db->fun('min', $field ?: '*');
         return $rs;
     }
 
@@ -312,7 +332,7 @@ Class Model {
      */
     public function max(string $field = null)
     {
-        $rs = $this->db[$this->dbname]->fun('max', $field ?: '*');
+        $rs = $this->db->fun('max', $field ?: '*');
         return $rs;
     }
 
@@ -325,9 +345,9 @@ Class Model {
     public function setInc(string $field, int $num = 1)
     {
         $data = [
-            $field => '+' . $num
+            $field => ['inc', $num]
         ];
-        $rs = $this->db[$this->dbname]->update($data);
+        $rs = $this->db->update($data);
         return $rs;
     }
 
@@ -340,9 +360,9 @@ Class Model {
     public function setDec(string $field, int $num = 1)
     {
         $data = [
-            $field => '-' . $num
+            $field => ['dec', $num]
         ];
-        $rs = $this->db[$this->dbname]->update($data);
+        $rs = $this->db->update($data);
         return $rs;
     }
 
@@ -354,9 +374,9 @@ Class Model {
     Public function _sql(bool $create = false)
     {
         if($create)
-            return $this->db[$this->dbname]->_sql();
+            return $this->db->_sql();
         else
-            return $this->db[$this->dbname]->sql;
+            return $this->db->sql;
     }
 
     /**
@@ -366,7 +386,7 @@ Class Model {
      */
     Public function query(string $sql)
     {
-        $rs = $this->db[$this->dbname]->query($sql);
+        $rs = $this->db->query($sql);
         if(!$rs){
             $err = $this->link->errorInfo();
             \Root::error("SQL执行出错！", "错误原因：". join("\n", $err) ."\nSQL语句：{$sql}", E_USER_WARNING);
@@ -391,7 +411,34 @@ Class Model {
      */
     Public function execute(string $sql)
     {
-        return $this->db[$this->dbname]->execute($sql);
+        return $this->db->execute($sql);
+    }
+
+    /**
+     * 开启事务
+     * @return mixed
+     */
+    Public function beginTransaction()
+    {
+        return $this->db->beginTransaction();
+    }
+
+    /**
+     * 提交事务
+     * @return mixed
+     */
+    Public function commit()
+    {
+        return $this->db->commit();
+    }
+
+    /**
+     * 回滚事务
+     * @return mixed
+     */
+    Public function rollBack()
+    {
+        return $this->db->rollBack();
     }
 
     /**
@@ -402,7 +449,7 @@ Class Model {
      */
     Public function createTmp(string $tablename = null, string $sql = null)
     {
-        return $this->db[$this->dbname]->createTmp($tablename, $sql);
+        return $this->db->createTmp($tablename, $sql);
     }
 
     /**
@@ -412,7 +459,7 @@ Class Model {
      */
     Public function updateTmp(string $tablename)
     {
-        return $this->db[$this->dbname]->updateTmp($tablename);
+        return $this->db->updateTmp($tablename);
     }
 
 }

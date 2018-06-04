@@ -24,18 +24,18 @@ class ViewModel extends Model
 //		]
     ];
 
-    public function __construct($dbname)
-    {
-        parent::__construct($dbname);
-
+    //初始化模型
+    public function _init(){
         if(empty($this->viewFields) || !is_array($this->viewFields)){
             trigger_error('指定的关联表不存在！', E_USER_WARNING);
             return false;
         }
         $bool = false;
         foreach($this->viewFields as $word => $data){
-            $this->field($data['field'], $word);
-            if($bool)$this->join($data['table'].' '.$word, $data['on'], $data['type']?:'inner');
+            if(empty($data['table']))continue;
+            if(!empty($data['field']))$this->field($data['field'], $word);
+            if($bool && empty($data['on']))continue;
+            if($bool)$this->join($data['table'].' '.$word, $data['on'], !empty($data['type'])?$data['type']:'inner');
             else $this->table($data['table'], $word);
             $bool = true;
         }

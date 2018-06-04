@@ -15,12 +15,12 @@ return [
         'gzip' => 1 //响应数据压缩率, 0不压缩, 取值1-9压缩率越高CPU消耗越大
     ],
     'SERVER' => [
-        'ip' => '127.0.0.1',
+        'ip' => '0.0.0.0',
         'port' => '9200',
         'reactor_num' => 2, //poll线程的数量(根据CPU核数配置)
         'worker_num' => 8,    //同时运行的进程数目(可配置CPU核数的1-4倍)
         'backlog' => 128,   //最大握手排队数量
-        'max_request' => 1000 //此参数表示worker进程在处理完n次请求后结束运行。manager会重新创建一个worker进程。此选项用来防止worker进程内存溢出。
+        'max_request' => 1000 //此参数表示worker进程在处理完n次请求后结束运行。manager会重新创建一个worker进程。此选项用来防止worker进程内存溢出。ws慎用
     ],
     'SESSION' => [
         'AUTO_START' => true, //是否自动开启session
@@ -49,16 +49,17 @@ return [
  * 数据库配置文件
  */
 return [
-    'DB_CONF' => [
-        'DB_TYPE'   => 'mysql', // 数据库类型
-        'DB_HOST'   => '127.0.0.1', // 服务器地址
-        'DB_NAME'   => 'table', // 数据库名
-        'DB_USER'   => 'root', // 用户名
-        'DB_PASS'   => '123456', // 密码
-        'DB_PORT'   => '3306', // 端口
-        'DB_PREFIX' => 'di_', // 数据库表前缀
-        'DB_CHARSET'=> 'utf8mb4' // 字符集
-    ]
+//    'DB_CONF' => [
+//        'DB_TYPE'   => 'mysql', // 数据库类型
+//        'DB_HOST'   => '127.0.0.1', // 服务器地址
+//        'DB_NAME'   => 'table', // 数据库名
+//        'DB_USER'   => 'root', // 用户名
+//        'DB_PASS'   => '123456', // 密码
+//        'DB_PORT'   => '3306', // 端口
+//        'DB_PREFIX' => '', // 数据库表前缀
+//        'DB_CHARSET'=> 'utf8mb4', // 字符集
+//        'DB_POOL'   => false  //是否启用连接池
+//    ]
 ];
                 ]]>
             </ini>
@@ -207,7 +208,6 @@ class IndexWebsocket extends ServerPush
      * return bool true允许连接 false报101错误禁止连接
      */
     public function _open(){
-        $this->team(0, $this->fd);
         return true;
     }
 

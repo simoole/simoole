@@ -18,29 +18,28 @@ Class Worker
     Public $tmpTables = [];
 
     /**
-     * 工作进程启动回调
+     * 工作/任务进程启动回调
      * @param swoole_server $server
      * @param $worker_id
      */
-    Static Public function start(\swoole_server $server, int $worker_id)
+    Static Public function onstart(\swoole_server $server, int $worker_id)
     {
         global $argv;
         //实例化进程对象
         \Root::$worker = new self();
         if($server->taskworker) {
             @file_put_contents(TMP_PATH . "task_{$worker_id}.pid", $server->worker_pid);
-            \swoole_set_process_name("Tasker[{$worker_id}] process in <{$argv[0]}>");
+            \swoole_set_process_name("Tasker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
             echo "TaskID[{$worker_id}] PID[". $server->worker_pid ."] creation finish!" . PHP_EOL;
             //路由任务配置
             foreach(\Root::$tasks as $conf){
                 if(in_array($worker_id - $server->setting['worker_num'], $conf['ids'])){
                     \Root\Task::$callback = $conf['task_fun'];
-                    L($worker_id . ' => ' . $conf['task_fun']);
                 }
             }
         } else {
             @file_put_contents(TMP_PATH . "worker_{$worker_id}.pid", $server->worker_pid);
-            \swoole_set_process_name("Worker[{$worker_id}] process in <{$argv[0]}>");
+            \swoole_set_process_name("Worker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
             echo "WorkerID[{$worker_id}] PID[". $server->worker_pid ."] creation finish!" . PHP_EOL;
             //绑定信号处理
             \swoole_process::signal(SIGUSR1, '\Root\Worker::signal');
@@ -56,6 +55,19 @@ Class Worker
             'memory_used' => memory_get_usage()
         ]);
         \Root::$worker->createTmpTables();
+
+        //工作进程启动后执行
+        $method = C('APP.worker_start');
+        if(!empty($method))$method();
+    }
+
+    /**
+     * 工作/任务进程终止回调
+     * @param \swoole_server $server
+     * @param int $worker_id
+     */
+    Static Public function onstop(\swoole_server $server, int $worker_id){
+
     }
 
     /**
@@ -91,6 +103,10 @@ Class Worker
         \Root::loadUtil(APP_PATH);
         //加载应用类库
         \Root::loadClass(APP_PATH);
+        //加载配置文件
+        \Root::$conf = \Root::loadConf();
+        //初始化数据库连接池
+        \Root\Model::_initialize();
     }
 
     /**

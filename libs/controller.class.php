@@ -14,9 +14,9 @@ Class Controller
     /**
      * 视图变量入库
      * @param mixed $data 变量数组或变量名
-     * @param string $val 变量值
+     * @param mixed $val 变量值
      */
-    protected function assign($data, string $val = '')
+    protected function assign($data, $val = '')
     {
         if(is_array($data)){
             foreach($data as $key => $val){
@@ -31,8 +31,9 @@ Class Controller
     /**
      * 加载视图
      * @param string $path 视图路径(模块名/控制器名/方法名)
+     * @param bool $isRuturn 是否返回视图，而非输出
      */
-    protected function display(string $path = '')
+    protected function display(string $path = '', bool $isRuturn = false)
     {
         $mod_name = \Root::$user->mod_name;
         $cnt_name = \Root::$user->cnt_name;
@@ -54,7 +55,7 @@ Class Controller
 
         $path = APP_PATH . $mod_name . '/view/' . $cnt_name . '/' . $act_name . TPL_EXT;
         \Root::$user->response->header('Content-Type', 'text/html');
-        \Root::$user->response->header('charset', 'utf8');
+        \Root::$user->response->header('charset', 'utf-8');
         \Root::loadFiles($path, $this->vars);
     }
 
@@ -67,8 +68,9 @@ Class Controller
         if(!is_array($data))$data = [$data];
         $data = array_change_value($data);
         \Root::$user->response->header('Content-Type', 'application/json');
-        \Root::$user->response->header('charset', 'utf8');
+        \Root::$user->response->header('charset', 'utf-8');
         echo json_encode($data);
+        return true;
     }
 
     /**
@@ -79,7 +81,7 @@ Class Controller
      */
     protected function success($msg, string $url = null, int $second = 5)
     {
-        \Root::$user->response->header('charset', 'utf8');
+        \Root::$user->response->header('charset', 'utf-8');
         if($url === true || I('header.x-requested-with') == 'XMLHttpRequest'){
             $data = array_change_value(['status' => $url?:1, 'info' => $msg]);
             \Root::$user->response->header('Content-Type', 'application/json');
@@ -92,6 +94,7 @@ Class Controller
                 'second' => $second
             ]);
         }
+        return true;
     }
 
     /**
@@ -102,7 +105,7 @@ Class Controller
      */
     protected function error($msg, string $url = null, int $second = 5)
     {
-        \Root::$user->response->header('charset', 'utf8');
+        \Root::$user->response->header('charset', 'utf-8');
         if($url === true || I('header.x-requested-with') == 'XMLHttpRequest'){
             $data = array_change_value(['status' => $url?:0, 'info' => $msg]);
             \Root::$user->response->header('Content-Type', 'application/json');
@@ -115,6 +118,7 @@ Class Controller
                 'second' => $second
             ]);
         }
+        return false;
     }
 
     /**
@@ -130,6 +134,15 @@ Class Controller
             }
         }else
             \Root::$user->response->header($key, $value);
+    }
+
+    /**
+     * 重定向
+     * @param string $url 要被定向的URL
+     */
+    protected function redirect(string $url){
+        $this->header('location', $url);
+        \Root::$user->response->status(302);
     }
 
     /**

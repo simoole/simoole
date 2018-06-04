@@ -42,6 +42,7 @@ class Console {
 
     Static Public function error($errno, $errmsg, $filename, $linenum)
     {
+        if(!in_array($errno, C('LOG.errortype')))return;
         $data = [
             'datetime' => date("Y-m-d H:i:s"),
             'errornum' => $errno,
@@ -72,6 +73,7 @@ class Console {
 
     Static Public function exception($exception)
     {
+        if(!in_array($exception->getCode(), C('LOG.errortype')))return;
         $data = [
             'datetime' => date("Y-m-d H:i:s"),
             'errortype' => self::errortype[$exception->getCode()],
@@ -111,51 +113,11 @@ class Console {
             }
         }
 
-        $mod_name = \Root::$user ? \Root::$user->mod_name : 'common';
-        if(C('LOG.errortype') == 'xml')
+        $mod_name = is_object(\Root::$user) ? \Root::$user->mod_name : 'common';
+        if(C('LOG.errorfile') == 'xml')
             L(array2xml($data) . "\n\n", 'error', $mod_name);
         else
             L(json_encode($data) . PHP_EOL, 'error', $mod_name);
-        //如果是E_USER_ERROR/E_USER_WARNING级错误,则自动关闭服务
-        if(self::$type == E_USER_ERROR){
-            \Root::$serv->shutdown();
-            die("由于致命错误导致服务器停止,请查询系统日志!\n");
-        }
-    }
-
-    /**
-     * 异常输出
-     * @param string $title 错误标识
-     * @param string $content 错误内容
-     */
-    Static Public function input($title, $content = null, $type = null)
-    {
-        if(is_array($content) && !empty($content)){
-            $arr = $content;
-            if(isset($arr['content'])){
-                $content = $arr['content'];
-                unset($arr['content']);
-            }else{
-                $content = $arr[0];
-                unset($arr[0]);
-            }
-            self::$other_data = $arr;
-        }
-        if(in_array($type, [E_USER_NOTICE, E_USER_ERROR, E_USER_WARNING])){
-            if($content === null)
-                trigger_error($title, $type);
-            else{
-                self::$title = $title;
-                trigger_error($content, $type);
-            }
-        }else{
-            if($content === null)
-                throw new \Exception($title);
-            else{
-                self::$title = $title;
-                throw new \Exception($content);
-            }
-        }
     }
 
 }

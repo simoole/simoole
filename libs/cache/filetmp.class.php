@@ -10,8 +10,8 @@ Class Filetmp {
 	Public function __construct(array $config)
 	{
 		$this->config = $config;
-		if(!is_writable($this->config['ADDRESS'])){
-			\Root::error('文件没有可写权限！', $this->config['ADDRESS'] . ' 该文件没有可写权限！', E_USER_ERROR);
+		if(!is_writable($this->config['path'])){
+			trigger_error($this->config['path'] . ' 该文件没有可写权限！', E_USER_ERROR);
 			return false;
 		}
 		$this->prefix = $this->config['PREFIX'];
@@ -22,18 +22,18 @@ Class Filetmp {
 	 * @param string $key
 	 * @param string $value
 	 */
-	Public function set(string $key, string $value, int $timeout = null)
+	Public function set(string $key, $value, int $timeout = null)
 	{
 		if($timeout === null)$timeout = $this->config['TIMEOUT'];
 		if($timeout > 7 * 24 * 60 * 60){
-			\Root::error('缓存的超时时间不能超过7天！', E_USER_WARNING);
+            trigger_error('缓存的超时时间不能超过7天！', E_USER_WARNING);
 		}else{
 			$data = json_encode(array(
 				'timeout' => time() + $timeout,
 				'value' => $value
 			));
-			if(!$fp = @fopen($this->config['ADDRESS'] . $this->prefix . $key, 'w')){
-				\Root::error('目录没有可写权限！', $this->config['ADDRESS'] . ' 该目录没有可写权限！', E_USER_ERROR);
+			if(!$fp = @fopen($this->config['path'] . $this->prefix . $key, 'w')){
+                trigger_error($this->config['path'] . ' 该目录没有可写权限！', E_USER_ERROR);
 			}else{
 				fwrite($fp,$data,strlen($data));
 				fclose($fp);
@@ -49,12 +49,12 @@ Class Filetmp {
 	 */
 	Public function get(string $key)
 	{
-		$filepath = $this->config['ADDRESS'] . $this->prefix . $key;
+		$filepath = $this->config['path'] . $this->prefix . $key;
 		if(!is_file($filepath))return false;
 		$str = file_get_contents($filepath);
 		$arr = json_decode($str, true);
 		if(json_last_error() != JSON_ERROR_NONE || $arr['timeout'] < time()){
-			unlink($this->config['ADDRESS'] . $this->prefix . $key);
+			unlink($this->config['path'] . $this->prefix . $key);
 			return false;
 		}
 		return $arr['value'];
@@ -66,7 +66,7 @@ Class Filetmp {
 	 */
 	Public function rm(string $key)
 	{
-		return unlink($this->config['ADDRESS'] . $this->prefix . $key);
+		return unlink($this->config['path'] . $this->prefix . $key);
 	}
 
 	/**
@@ -76,15 +76,15 @@ Class Filetmp {
 	 */
 	Public function clear(bool $is_all = false)
 	{
-		if ($dh = opendir($this->config['ADDRESS'])){
+		if ($dh = opendir($this->config['path'])){
 			while ($file = readdir($dh)){
-				if(!is_dir($this->config['ADDRESS'] . $file) && strpos($file, $this->prefix) !== false){
-					if($is_all)unlink($this->config['ADDRESS'] . $file);
+				if(!is_dir($this->config['path'] . $file) && strpos($file, $this->prefix) !== false){
+					if($is_all)unlink($this->config['path'] . $file);
 					else {
-						$str = file_get_contents($this->config['ADDRESS'] . $file);
+						$str = file_get_contents($this->config['path'] . $file);
 						$arr = json_decode($str, true);
 						if(json_last_error() != JSON_ERROR_NONE || $arr['timeout'] < time()){
-							unlink($this->config['ADDRESS'] . $file);
+							unlink($this->config['path'] . $file);
 							return false;
 						}
 					}
@@ -102,10 +102,10 @@ Class Filetmp {
 	 */
 	Public function find(string $keyword, bool $regular = false)
 	{
-		if ($dh = opendir($this->config['ADDRESS'])){
+		if ($dh = opendir($this->config['path'])){
 			$data = [];
 			while ($file = readdir($dh)){
-				$key = substr($file, strlen($this->config['ADDRESS'] . $this->prefix));
+				$key = substr($file, strlen($this->config['path'] . $this->prefix));
 				if((!$regular && strpos($key, $keyword) !== false) || ($regular && preg_match($keyword, $key))){
 					if($content = $this->get($key)) $data[$key] = $content;
 				}

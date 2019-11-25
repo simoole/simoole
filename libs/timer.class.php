@@ -9,15 +9,14 @@ namespace Root;
 
 class Timer
 {
-    Static Public $process = null;
     Static Public $chan = null;
     /**
      * 创建子进程用于构建定时器
      */
     Static public function create()
     {
-        self::$process = new \swoole_process('\Root\Timer::onCreate');
-        self::$process->start();
+        $process = new \swoole_process('\Root\Timer::onCreate');
+        \Root::$serv->addProcess($process);
     }
 
     /**
@@ -27,23 +26,18 @@ class Timer
     Static Public function onCreate(\swoole_process $process)
     {
         global $argv;
-        //转为守护进程
-        \swoole_process::daemon();
         $pid = getmypid();
         $num = count(glob(TMP_PATH . 'child_*.pid'));
-        @file_put_contents(TMP_PATH . 'child_'. $num .'.pid', $pid);
+        file_put_contents(TMP_PATH . 'child_'. $num .'.pid', $pid);
         $process->name("Child[{$num}] process in <". __ROOT__ ."{$argv[0]}>");
-        \swoole_process::signal(SIGUSR1, function() use ($pid){
-            T('__PROCESS')->set($pid, [
+        \swoole_process::signal(SIGSEGV, function() use ($pid){
+            T('__PROCESS')->set('pid_' . $pid, [
                 'memory_usage' => memory_get_usage(true),
                 'memory_used' => memory_get_usage()
             ]);
         });
 
-        \swoole_process::signal(SIGALRM, '\Root\Timer::callback');
-        //每秒执行一次
-        \swoole_process::alarm(1000 * 1000);
-        T('__PROCESS')->set($pid, [
+        T('__PROCESS')->set('pid_' . $pid, [
             'id' => $num,
             'type' => 4,
             'pid' => $pid,
@@ -52,6 +46,8 @@ class Timer
             'memory_usage' => memory_get_usage(true),
             'memory_used' => memory_get_usage()
         ]);
+
+        \Root::$serv->tick(1000, '\Root\Timer::callback');
     }
 
     /**
@@ -73,7 +69,7 @@ class Timer
                 //次数递减
                 if($opt['repeat'] > 0)$crontabs[$path]['repeat'] --;
 
-                self::call($path);
+                self::call($path, $opt['get']??[], $opt['post']??[]);
             }
         }
 
@@ -81,33 +77,29 @@ class Timer
         if($time % C('SESSION.CLEANUP') == 0){
             //清理过期的session
             \Root\Session::cleanup();
-            //清理过期cache
-            \Root\Cache::clear();
             //清理过期内存表
             \Root\Table::clearAll();
         }
     }
 
-    Static Private function call($path)
+    /**
+     * 发送HTTP请求
+     * @param string $path
+     * @param array $getParams
+     * @param array $postParams
+     */
+    Static Private function call(string $path, array $getParams = [], array $postParams = [])
     {
-        $cli = new \swoole_http_client(C('SERVER.ip'), C('SERVER.port'));
-        $cli->setHeaders([
-            'Host' => "localhost",
-            "User-Agent" => 'Chrome/49.0.2587.3',
-            'Accept' => 'text/html,application/xhtml+xml,application/xml',
-            'Accept-Encoding' => 'gzip',
-        ]);
+        $cli = new \Swoole\Coroutine\Http\Client(C('SERVER.ip'), C('SERVER.port'));
         $cli->set(['timeout' => 60]);
-        if(!empty($opt['post']))$cli->setData($opt['post']);
         $url = '/' . $path . C('HTTP.ext');
-        if(!empty($opt['get']))$url .= '?' . http_build_query($opt['get']);
+        if(!empty($getParams))$url .= '?' . http_build_query($getParams);
         $time = round(microtime(true) * 10000);
-        $cli->execute($url, function ($cli) use ($path,$time) {
-            $code = '['. date('Y-m-d H:i:s') .'][请求状态:' . $cli->statusCode . '][RunTime: '. (round(microtime(true) * 10000) - $time)/10000 .'s]' . PHP_EOL;
-            $code .= $cli->body . PHP_EOL;
-            L($code, str_replace('/', '_', $path), '_crontab');
-            $cli->close();
-        });
+        $cli->post($url, $postParams);
+        $code = '['. date('Y-m-d H:i:s') .'][请求状态:' . $cli->statusCode . '][RunTime: '. (round(microtime(true) * 10000) - $time)/10000 .'s]' . PHP_EOL;
+        $code .= $cli->getBody() . PHP_EOL;
+        L($code, str_replace('/', '_', $path), '_crontab');
+        $cli->close();
     }
 
     /**

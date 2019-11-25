@@ -30,7 +30,7 @@ abstract class Websocket
                 'mod_name' => 'string(20)',
                 'cnt_name' => 'string(20)',
                 'last_receive_time' => 'int(4)', //最后一次接收数据的时间戳
-                'user' => 'string(20480)' //\Root::$user对象的串行化形式
+                'user' => 'string(20480)' //\Root::$user[getcid()]对象的串行化形式
             ],
             '__WEBSOCKET_TEAMS' => [
                 '__total' => C('WEBSOCKET.max_connections'),
@@ -43,13 +43,13 @@ abstract class Websocket
         $serv = new \swoole_websocket_server($ip, $port) or die('Swoole启动失败!');
 
         //设置websocket握手回调
-        $serv->on('handshake', 'Root\Websocket::open');
+        $serv->on('handshake', '\\Root\\Websocket::open');
 
         //设置websocket消息接收回调
-        $serv->on('message', 'Root\Websocket::message');
+        $serv->on('message', '\\Root\\Websocket::message');
 
         //设置websocket连接关闭回调
-        $serv->on('close', 'Root\Websocket::close');
+        $serv->on('close', '\\Root\\Websocket::close');
 
         return $serv;
     }
@@ -69,7 +69,6 @@ abstract class Websocket
         $SecWebSocketAccept = base64_encode(sha1($websocketStr,true));
         $response->header('Sec-WebSocket-Accept', $SecWebSocketAccept);
         $response->header('Sec-WebSocket-Version','13');
-
 
         //配置路由
         $data = [
@@ -103,60 +102,59 @@ abstract class Websocket
             $response->end();
             return false;
         }
-        \Root::$user = new \Root\User($data);
+        \Root::$user[getcid()] = new \Root\User($data);
 
         //实例化open对象
         $ob = new $class_name;
-        \Root::$user->log('INFO: Websocket instance completed');
+        U()->log('INFO: Websocket instance completed');
         if($rs = $ob->_before_open() !== false){
-            \Root::$user->log('INFO: _start() execution completed');
+            U()->log('INFO: _start() execution completed');
             $rs = call_user_func_array([$ob, '_open'], $params);
-            \Root::$user->log('INFO: _open() execution completed');
+            U()->log('INFO: _open() execution completed');
             $ob->_end();
-            \Root::$user->log('INFO: _end() execution completed');
+            U()->log('INFO: _end() execution completed');
         }else{
-            \Root::$user->log('INFO: _start() execution finish');
+            U()->log('INFO: _start() execution finish');
             $response->status(401);
             $response->end();
-            \Root::$user = null;
+            \Root::$user[getcid()] = null;
             return false;
         }
 
         if($rs === true){
-            \Root::$user->db_links = [];
-            \Root::$user->save();
+            U()->db_links = [];
+            U()->save();
 
             //将终端信息存入内存表
-            $data['user'] = serialize(\Root::$user);
+            $data['user'] = serialize(U());
             if(strlen($data['user']) > 10240){
                 $response->status(500);
                 $response->end();
-                \Root::$user = null;
+                \Root::$user[getcid()] = null;
                 return false;
             }
             if(!T('__WEBSOCKET')->set($request->fd, $data)){
                 $response->status(401);
                 $response->end();
-                \Root::$user = null;
+                \Root::$user[getcid()] = null;
                 return false;
             }
             $response->status(101);
             $response->end();
-            \Root::$user = null;
+            \Root::$user[getcid()] = null;
 
             $fd = $request->fd;
             if(C('WEBSOCKET.heartbeat') == 1){
                 \Root::$serv->tick(200, function ($time_id) use ($fd) {
-                    if(\Root::$serv->connection_info($fd) !== false)
+                    if(\Root::$serv->isEstablished($fd))
                         \Root::$serv->push($fd, 0, 0x9);
                     else
                         \Root::$serv->clearTimer($time_id);
                 });
             }elseif(C('WEBSOCKET.heartbeat') == 2){
                 \Root::$serv->tick(1000, function($timer_id) use ($fd){
-                    if(!\Root::$serv->exist($fd) || !\Root::$serv->connection_info($fd)){
+                    if(!\Root::$serv->exist($fd) || !\Root::$serv->isEstablished($fd)){
                         \Root::$serv->clearTimer($timer_id);
-                        \Root::$serv->close($fd);
                         return;
                     }
                     static $i = 0;
@@ -172,7 +170,7 @@ abstract class Websocket
                         }
                         if($failcount > 3){
                             \Root::$serv->clearTimer($timer_id);
-                            \Root::$serv->close($fd);
+                            \Root::$serv->disconnect($fd, 1001, '心跳异常！');
                         }
                     }
                 });
@@ -182,9 +180,8 @@ abstract class Websocket
 
         $response->status($rs?:401);
         $response->end();
-        M('__cleanup');
-        D('__cleanup');
-        \Root::$user = null;
+
+        \Root::$user[getcid()] = null;
         return false;
     }
 
@@ -206,9 +203,9 @@ abstract class Websocket
 
         $data = T('__WEBSOCKET')->get($frame->fd);
         if(empty($data['mod_name']) || empty($data['cnt_name']))return;
-        \Root::$user = unserialize($data['user']);
+        \Root::$user[getcid()] = unserialize($data['user']);
         if($frame->data == 'pong'){
-            \Root::$user = null;
+            \Root::$user[getcid()] = null;
             return;
         }
 
@@ -218,9 +215,9 @@ abstract class Websocket
 
         ob_start();
         $ob = new $class_name;
-        \Root::$user->log('INFO: Websocket instance completed');
+        U()->log('INFO: Websocket instance completed');
         if($rs = $ob->_before_message($frame->data, $frame->fd) !== false){
-            \Root::$user->log('INFO: _start() execution completed');
+            U()->log('INFO: _start() execution completed');
             $_data = $frame->data;
             if(C('WEBSOCKET.data_type') == 'json'){
                 $_data = json_decode($frame->data, true);
@@ -229,21 +226,20 @@ abstract class Websocket
                 }
             }
             $ob->_message($_data);
-            \Root::$user->log('INFO: _message() execution completed');
+            U()->log('INFO: _message() execution completed');
             $ob->_end();
-            \Root::$user->log('INFO: _end() execution completed');
+            U()->log('INFO: _end() execution completed');
         }else{
-            \Root::$user->log('INFO: _start() execution finish');
+            U()->log('INFO: _start() execution finish');
         }
 
         unset($ob);
         $data = ob_get_clean();
         if(!empty($data))self::push($frame->fd, $data);
-        \Root::$user->save();
-        M('__cleanup');
-        D('__cleanup');
-        \Root::$user = null;
-        T('__PROCESS')->incr(\Root::$serv->worker_pid, 'receive');
+        U()->save();
+
+        \Root::$user[getcid()] = null;
+        T('__PROCESS')->incr('worker_' . \Root::$serv->worker_id, 'receive');
     }
 
     /**
@@ -256,29 +252,28 @@ abstract class Websocket
         $data = T('__WEBSOCKET')->get($fd);
         if(empty($data))return;
 
-        \Root::$user = unserialize($data['user']);
+        \Root::$user[getcid()] = unserialize($data['user']);
 
         //实例化控制器,并运行方法
         $class_name = ucfirst($data['mod_name']) . "\\Websocket\\" . ucfirst($data['cnt_name']) . "Websocket";
         if(!class_exists($class_name))return;
 
         $ob = new $class_name;
-        \Root::$user->log('INFO: Websocket instance completed');
+        U()->log('INFO: Websocket instance completed');
         if($rs = $ob->_before_end() !== false){
-            \Root::$user->log('INFO: _start() execution completed');
+            U()->log('INFO: _start() execution completed');
             $ob->_close();
-            \Root::$user->log('INFO: _close() execution completed');
+            U()->log('INFO: _close() execution completed');
             $ob->_end();
-            \Root::$user->log('INFO: _end() execution completed');
+            U()->log('INFO: _end() execution completed');
         }else{
-            \Root::$user->log('INFO: _start() execution finish');
+            U()->log('INFO: _start() execution finish');
         }
 
         unset($ob);
-        \Root::$user->save();
-        M('__cleanup');
-        D('__cleanup');
-        \Root::$user = null;
+        U()->save();
+
+        \Root::$user[getcid()] = null;
         T('__WEBSOCKET')->del($fd);
         T('__WEBSOCKET_TEAMS')->each(function($key, $row) use ($fd){
             $data = json_decode($row['fds'], true);
@@ -302,13 +297,13 @@ abstract class Websocket
     Static Public function push(int $fd, $data, int $opcode = 1, bool $finish = true)
     {
         //检测通道是否存在
-        if(!\Root::$serv->exist($fd) || !\Root::$serv->connection_info($fd)){
+        if(!\Root::$serv->exist($fd) || !\Root::$serv->isEstablished($fd)){
             trigger_error('通道['. $fd .']的客户端已经断开,无法发送消息!');
             return;
         }
         if(!is_string($data))$data = json_encode($data);
         \Root::$serv->push($fd, $data, $opcode, $finish);
-        T('__PROCESS')->incr(\Root::$serv->worker_pid, 'sendout');
+        T('__PROCESS')->incr('worker_' . \Root::$serv->worker_id, 'sendout');
     }
 
     /**

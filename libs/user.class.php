@@ -15,6 +15,8 @@ Class User
     Public $cnt_name = 'index';
     //默认方法名称
     Public $act_name = 'index';
+    //默认数据库名称
+    Public $dbname = 'DB_CONF';
 
     //要输出的对象
     Public $response = null;
@@ -45,29 +47,26 @@ Class User
     Public function __construct(array $data, &$response = null)
     {
         if($response !== null)$this->response = &$response;
-        $_GET = $this->get = isset($data['get'])?$data['get']:[];
-        $_POST = $this->post = isset($data['post'])?$data['post']:[];
+        $this->get = isset($data['get'])?$data['get']:[];
+        $this->post = isset($data['post'])?$data['post']:[];
         $this->server = isset($data['server'])?$data['server']:[];
         $this->header = isset($data['header'])?$data['header']:[];
-        $_SERVER = $this->server = array_merge($this->server, $this->header);
-        $_COOKIE = $this->cookie = isset($data['cookie'])?$data['cookie']:[];
-        $_FILES = $this->files = isset($data['files'])?$data['files']:[];
-        $this->input = isset($data['input'])?$data['input']:[];
-        $_REQUEST = $this->request = array_merge($_GET, $_POST);
+        $this->server = array_merge($this->server, $this->header);
+        $this->cookie = isset($data['cookie'])?$data['cookie']:[];
+        $this->files = isset($data['files'])?$data['files']:[];
+        $this->input = isset($data['input'])?$data['input']:'';
+        $this->request = array_merge($_GET, $_POST);
         $this->fd = isset($data['fd'])?$data['fd']:null;
 
-        $GLOBALS = [];
-        $this->mod_name = $GLOBALS['MODULE_NAME'] = $data['mod_name'];
-        $this->cnt_name = $GLOBALS['CONTROLLER_NAME'] = $data['cnt_name'];
-        $this->act_name = $GLOBALS['ACTION_NAME'] = isset($data['act_name']) ? $data['act_name'] : null;
+        $this->mod_name = $data['mod_name'];
+        $this->cnt_name = $data['cnt_name'];
+        $this->act_name = isset($data['act_name']) ? $data['act_name'] : null;
 
-        $_SESSION = [];
         $this->sess_conf = \Root::$conf['SESSION'];
         if($this->sess_conf['AUTO_START']){
             $sessid = null;
-            if(isset($_COOKIE['PHPSESSID']) && is_string($_COOKIE['PHPSESSID']) && strlen($_COOKIE['PHPSESSID']) == 40)$sessid = $_COOKIE['PHPSESSID'];
+            if(isset($this->cookie['PHPSESSID']) && is_string($this->cookie['PHPSESSID']) && strlen($this->cookie['PHPSESSID']) == 40)$sessid = $this->cookie['PHPSESSID'];
             $this->session = new Session($sessid);
-            $_SESSION = $this->session->getData();
         }
 
         //记录开始访问日志
@@ -80,13 +79,11 @@ Class User
             $path = $this->mod_name . '/' . $this->cnt_name . '/' . $this->act_name . C('HTTP.ext') . PHP_EOL;
         else
             $path = $this->mod_name . '/' . $this->cnt_name . C('HTTP.ext') . PHP_EOL;
-        $this->running_time_log = "\n[ {$date}+{$gdateStr} ] " . $this->server['remote_addr'] . ' /' . $path;
+        $this->running_time_log = "\n[{$date}+{$gdateStr}][WorkerID:".\Root::$serv->worker_id."][UID:".getcid()."] " . $this->server['remote_addr'] . ' /' . $path;
     }
 
     Public function __wakeup()
     {
-        $_SESSION = $this->session->getData();
-
         //记录开始访问日志
         $date = date('Y-m-d H:i:s');
         $this->starttime = $this->runtime = round(microtime(true) * 10000);
@@ -97,7 +94,7 @@ Class User
             $path = $this->mod_name . '/' . $this->cnt_name . '/' . $this->act_name . C('HTTP.ext') . PHP_EOL;
         else
             $path = $this->mod_name . '/' . $this->cnt_name . C('HTTP.ext') . PHP_EOL;
-        $this->running_time_log = "\n[ {$date}+{$gdateStr} ] " . $this->server['remote_addr'] . ' /' . $path;
+        $this->running_time_log = "\n[{$date}+{$gdateStr}][WorkerID:".\Root::$serv->worker_id."][UID:".getcid()."] " . $this->server['remote_addr'] . ' /' . $path;
     }
 
     /**
@@ -120,7 +117,9 @@ Class User
             }
         }
         $this->running_time_log .= 'INFO: --END-- [TotalRunningTime: '. (round(microtime(true)*10000) - $this->starttime)/10000 .'s]' . PHP_EOL;
-        L($this->running_time_log, 'client', $this->mod_name);
+        $dirname = 'client';
+        if(!empty($this->act_name))$dirname = 'request';
+        L($this->running_time_log, $dirname, strtolower($this->mod_name));
     }
 
 }

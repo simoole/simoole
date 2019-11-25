@@ -60,7 +60,7 @@ class Session
             }
             $this->data = $data;
         }
-        if(empty($this->data))$this->set();
+        $this->set();
     }
 
     public function __sleep()
@@ -80,7 +80,7 @@ class Session
             }
             $this->data = $data;
         }
-        if(empty($this->data))$this->set();
+        $this->set();
     }
 
     /**

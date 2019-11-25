@@ -7,8 +7,6 @@
 
 return [
     'HTTP' => [
-        'cache_time' => 5, //请求结果缓存时间 5秒, 0代表不缓存
-        'gzip' => 1, //响应数据压缩率, 0不压缩, 取值1-9压缩率越高CPU消耗越大
         'http2' => false, //启用HTTP2协议解析，需要依赖--enable-http2编译选项
         'ext' => '.html', //URI后缀
         'tpl_ext' => '.tpl.php', //视图文件后缀
@@ -24,30 +22,11 @@ return [
         'worker_start' => null, //工作进程start后执行的函数名
         'after_stop' => null //实例stop后执行的函数名(不可进行数据库操作)
     ],
-    'CACHE' => [
-        'DRIVE' => 'FILETMP', //缓存驱动 FILETMP-文件缓存、MEMCACHE-memcache缓存、MEMCACHED-memcached缓存、REDIS-redis缓存
-        'PORT' => null, //网络地址端口
-        'TIMEOUT' => 24 * 3600, //缓存的默认超时时间(s)
-        'MAX_SIZE' => 2 * 1024, //单个文件的最大尺寸限制(kb)
-        'PREFIX' => 'cache_'
-    ],
-    'FILETMP' => [
-        'path' => TMP_PATH
-    ],
-    'MEMCACHE' => [
-        'host' => null,
-        'port' => '11211'
-    ],
-    'MEMCACHED' => [
-        'host' => null,
-        'port' => '11211',
-        'user' => null,
-        'pass' => null
-    ],
     'REDIS' => [
-        'host' => null,
-        'port' => '6379',
-        'pass' => null
+        'host' => null, //redis连接IP
+        'port' => '6379', //redis连接端口
+        'pass' => null, //redis连接秘钥
+        'expire' => 3600 //默认有效期
     ],
     'SESSION' => [
         'AUTO_START' => true,
@@ -67,12 +46,13 @@ return [
     //加密字典
     'KEYT' => 'sXODQpGzexIwo8gJqdEj94ZFPc2KNUC3kBaTmMSL07r6u15yYnHifVlWbtvhAR',
     'SERVER' => [
-        'ip' => '127.0.0.1',
+        'ip' => '0.0.0.0',
         'port' => '9501',
         'reactor_num' => 2, //poll线程的数量(根据CPU核数配置)
         'worker_num' => 4,    //同时运行的进程数目(可配置CPU核数的1-4倍)
         'backlog' => 128,   //最大握手排队数量
         'max_request' => 1000, //此参数表示worker进程在处理完n次请求后结束运行。manager会重新创建一个worker进程。此选项用来防止worker进程内存溢出。
+        'max_coroutine' => 1000, //单个worker进程最多同时处理的协程数
         'daemonize' => 1, //是否开启守护进程
         'dispatch_mode' => 2, //通道分配模式
         'enable_child' => 1 //是否开启内部定时器（定时器会默认清理过期的内存表数据）
@@ -96,7 +76,7 @@ return [
             '__total' => 10,
             '__expire' => 0, //有效期无限制
             'id' => 'int(1)',
-            'type' => 'int(1)', //进程类型 0-系统 1-管理进程 2-工作进程 3-任务进程
+            'type' => 'int(1)', //进程类型 0-系统 1-管理进程 2-工作进程 3-任务进程 4-子进程
             'pid' => 'int(2)', //进程编号
             'receive' => 'int(8)', //进程接收数据包数量
             'sendout' => 'int(8)', //进程发送数据包数量
@@ -106,7 +86,7 @@ return [
         '__LOCK' => [
             '__total' => 10,
             '__expire' => 60, //有效期60秒
-            'type' => 'int(1)', //锁类型, 0-自旋锁 1-异步锁
+            'type' => 'int(1)', //锁类型, 0-队列锁 1-异步锁
             'timeout' => 'int(4)' //锁的失效时间，到时间会自动解锁
         ]
     ],

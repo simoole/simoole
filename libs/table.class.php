@@ -30,28 +30,68 @@ Class Table
             if(isset(self::$table[$tablename]))continue;
             $total = isset($columns['__total']) ? $columns['__total'] : 10;
             if($total <= 0)continue;
-            self::$conf[$tablename] = $columns;
+            $configs = $columns;
             unset($columns['__total']);
-            self::$table[$tablename] = new \swoole_table(pow(2, $total));
+            self::$table[$tablename] = new \Swoole\Table(pow(2, $total));
             if(isset($columns['__expire'])){
-                if($columns['__expire'] > 0)self::$table[$tablename]->column('__datetime', \swoole_table::TYPE_INT, 5);
+                if($columns['__expire'] > 0)self::$table[$tablename]->column('__datetime', \Swoole\Table::TYPE_INT, 5);
                 unset($columns['__expire']);
             }
             self::$sizes[$tablename] = 0;
             foreach($columns as $name => $col){
-                $type = \swoole_table::TYPE_STRING;
+                $type = \Swoole\Table::TYPE_STRING;
+                $_type = 'string';
                 $size = 256;
-                if(preg_match('/^(string|int|float)\((\d+)\)$/', $col, $arr)){
+                $auto = '';
+                if(is_array($col)){
+                    if(isset($col['type'])){
+                        switch($col['type']){
+                            case 'int':
+                                $type = \Swoole\Table::TYPE_INT;
+                                $_type = 'int';
+                                break;
+                            case 'string':
+                                $type = \Swoole\Table::TYPE_STRING;
+                                $_type = 'string';
+                                break;
+                            case 'float':
+                                $type = \Swoole\Table::TYPE_FLOAT;
+                                $_type = 'float';
+                                break;
+                        }
+                    }
+                    if(isset($col['size']))$size = (int)$col['size'];
+                    if(isset($col['auto'])){
+                        if($col['auto'] == 'increment' && $col['type'] == 'int')$auto = 'increment';
+                        if($col['auto'] == 'datetime' && in_array($col['type'],['int','string']))$auto = 'datetime';
+                    }
+                }elseif(is_string($col) && preg_match('/^(string|int|float)\((\d+)\)$/', $col, $arr)){
                     switch($arr[1]){
-                        case 'int':$type = \swoole_table::TYPE_INT;break;
-                        case 'string':$type = \swoole_table::TYPE_STRING;break;
-                        case 'float':$type = \swoole_table::TYPE_FLOAT;break;
+                        case 'int':
+                            $type = \Swoole\Table::TYPE_INT;
+                            $_type = 'int';
+                            break;
+                        case 'string':
+                            $type = \Swoole\Table::TYPE_STRING;
+                            $_type = 'string';
+                            break;
+                        case 'float':
+                            $type = \Swoole\Table::TYPE_FLOAT;
+                            $_type = 'float';
+                            break;
                     }
                     $size = (int)$arr[2];
                 }
                 self::$sizes[$tablename] += $size;
                 self::$table[$tablename]->column($name, $type, $size);
+                $configs[$name] = [
+                    'type' => $_type,
+                    'size' => $size,
+                    'auto' => $auto
+                ];
             }
+            self::$table[$tablename]->_atomic = new \Swoole\Atomic(0);
+            self::$conf[$tablename] = $configs;
             self::$table[$tablename]->create();
         }
         return true;
@@ -169,29 +209,50 @@ Class Table
      */
     Public function set(string $key, array $data)
     {
+        $this->_table->_atomic->add();
         $columns = self::$conf[$this->tablename];
         $datas = [];
-        foreach($data as $name => $value){
-            if(isset($columns[$name])){
-                $_data = $value;
-                if(is_array($value)){
-                    $_data = json_encode($value);
+        $time = time();
+        foreach($columns as $name => $arr){
+            if(isset($data[$name])){
+                $_data = $data[$name];
+                if(is_array($data[$name])){
+                    $_data = json_encode($data[$name]);
                 }
-                $types = explode('(', trim($columns[$name], ')'));
-                if((strtolower($types[0]) == 'int' && $types[1] < strlen(decbin($_data))/8) || (strtolower($types[0]) == 'string' && $types[1] < strlen($_data))){
+                $type = $arr['type'];
+                $size = $arr['size'];
+                if((strtolower($type) == 'int' && $size < strlen(decbin($_data))/8) || (strtolower($type) == 'string' && $size < strlen($_data))){
                     return false;
                 }
                 $datas[$name] = $_data;
+                if($arr['auto'] == 'increment')$this->_table->_atomic->set($_data);
+            }elseif($arr['auto'] == 'increment'){
+                $datas[$name] = $this->_table->_atomic->get();
+            }elseif($arr['auto'] == 'datetime'){
+                if($arr['type'] == 'int')
+                    $datas[$name] = $time;
+                elseif($arr['type'] == 'string')
+                    $datas[$name] = date('Y-m-d H:i:s', $time);
             }
         }
+        if(empty($datas))return false;
         if($this->expire > 0)$datas['__datetime'] = time() + $this->expire;
         return $this->_table->set($key, $datas);
     }
 
     /**
+     * 返回最后一条记录的原子ID
+     * @return int
+     */
+    public function last_id()
+    {
+        return $this->_table->_atomic->get();
+    }
+
+    /**
      * 判断key是否存在
      * @param string $key
-     * @return mixed
+     * @return bool
      */
     Public function exist($key)
     {

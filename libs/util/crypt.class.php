@@ -15,6 +15,7 @@ class Crypt
     {
         $char = C('KEYT');
         $chars = str_split($char);
+        $str = str_replace(['/', '+', '='], ['0x2f', '0x2b', '0x3d'], base64_encode($str));
         $strs = str_split($str);
         $keys = str_split(substr(preg_replace('/0-9a-zA-Z/i', '$0', base64_encode(sha1($key?:str_rot13($char)))),0,16));
         $arr = [];
@@ -61,6 +62,7 @@ class Crypt
                 $n = ($v_num - ($_i%4) * 10) * 62;
             }
         }
-        return implode('', $arr);
+        $str = str_replace(['0x2f', '0x2b', '0x3d'], ['/', '+', '='], implode('', $arr));
+        return base64_decode($str);
     }
 }

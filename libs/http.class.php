@@ -10,8 +10,6 @@ namespace Root;
 
 class Http
 {
-    Static Public $data = null;
-
     /**
      * Swoole启动回调
      * @param swoole_server $server
@@ -21,12 +19,8 @@ class Http
         global $argv;
         \swoole_set_process_name("Master process in <". __ROOT__ ."{$argv[0]}>");
         //绑定状态事件
-        \swoole_process::signal(SIGUSR1, '\Root\Http::status');
-        //绑定重载事件
-        \swoole_process::signal(SIGUSR2, function() use ($server){
-            $server->reload();
-        });
-        T('__PROCESS')->set($server->master_pid, [
+        \swoole_process::signal(SIGSEGV, '\Root\Http::status');
+        T('__PROCESS')->set('master', [
             'id' => 0,
             'type' => 0,
             'pid' => $server->master_pid,
@@ -64,11 +58,9 @@ class Http
     Static Public function managerStart(\swoole_server $server)
     {
         global $argv;
-        $num = count(glob(TMP_PATH . 'manager_*.pid'));
-        @file_put_contents(TMP_PATH . 'manager_'. $num .'.pid', $server->manager_pid);
-        \swoole_set_process_name("Manager[{$num}] process in <". __ROOT__ ."{$argv[0]}>");
-        T('__PROCESS')->set($server->manager_pid, [
-            'id' => $num,
+        file_put_contents(TMP_PATH . 'manager.pid', $server->manager_pid);
+        \swoole_set_process_name("Manager process in <". __ROOT__ ."{$argv[0]}>");
+        T('__PROCESS')->set('manager', [
             'type' => 1,
             'pid' => $server->manager_pid,
             'receive' => 0,
@@ -85,7 +77,7 @@ class Http
     {
         $memory_usage = memory_get_usage(true);
         $memory_used = memory_get_usage();
-        T('__PROCESS')->set(\Root::$serv->master_pid, [
+        T('__PROCESS')->set('master', [
             'memory_usage' => $memory_usage,
             'memory_used' => $memory_used
         ]);
@@ -109,14 +101,13 @@ class Http
         $sum_usage = $memory_usage + $sum;
         $sum_used = $memory_used;
         $sum_receive = $sum_sendout = $sum_task = 0;
-        foreach(glob(TMP_PATH . '*_*.pid') as $filename){
-            $pid = @file_get_contents($filename);
-            if(!strpos($filename, 'manager') && !strpos($filename, 'task')){
-                \swoole_process::kill($pid, SIGUSR1);
+
+        T('__PROCESS')->each(function($key, $data) use (&$datas, &$sum_usage, &$sum_used, &$sum_receive, &$sum_sendout, &$sum_task){
+            if($data['type'] > 1){
+                \swoole_process::kill($data['pid'], SIGSEGV);
                 usleep(10000);
             }
-            $data = T('__PROCESS')->get($pid);
-            if(empty($data))$datas[] = "[进程 {$pid} 异常!]" . PHP_EOL;
+            if(empty($data))$datas[] = "[进程 {$data['pid']} 异常!]" . PHP_EOL;
             switch($data['type']){
                 case 1:
                     $datas[] = "[管理进程][ID.{$data['id']}]";
@@ -158,11 +149,12 @@ class Http
                     break;
             }
             $datas[] = '';
-        }
+        });
+
         $datas[] = "接受数据包总量:{$sum_receive} 发送数据包总量:{$sum_sendout}";
         if(!empty($sum_task))$datas[] = "处理任务总量:" . $sum_task;
         $datas[] = "内存占用总量:" . $sum_usage/1024 . 'kb ' . "内存使用总量:" . $sum_used/1024 . 'kb ';
-        @file_put_contents(TMP_PATH . 'status.info', join(PHP_EOL, $datas));
+        file_put_contents(TMP_PATH . 'status.info', join(PHP_EOL, $datas));
     }
 
     /**
@@ -172,7 +164,7 @@ class Http
      */
     Static Public function request($request, &$response)
     {
-        T('__PROCESS')->incr(\Root::$serv->worker_pid, 'receive');
+        T('__PROCESS')->incr('pid_' . \Root::$serv->worker_pid, 'receive');
         //配置路由
         $data = [
             'connect_time' => time(),
@@ -213,38 +205,26 @@ class Http
             }
         }
 
-        self::$data = $data;
-        \Root::$user = new User($data, $response);
-        self::run($response);
+        \Root::$user[getcid()] = new User($data, $response);
+        self::run($data, $response);
         //回收内存
-        M('__cleanup');
-        D('__cleanup');
-        self::$data = null;
-        \Root::$user = null;
+//        M('__cleanup');
+//        D('__cleanup');
+        \Root::$user[getcid()] = null;
     }
 
     /**
      * HTTP请求执行
      * @param $response
      */
-    Static Public function run(&$response)
+    Static Public function run($data, &$response)
     {
-        //检查缓存
-        if(C('HTTP.cache_time')){
-            $key = md5(json_encode([self::$data['server']['request_uri'], $_POST, self::$data['input'], $_FILES]));
-            if($pagedata = cache('page_' . $key)){
-                if(C('HTTP.gzip'))$response->gzip(C('HTTP.gzip'));
-                $response->end($pagedata);
-                return;
-            }
-        }
-
         //获取参数
         $params = I('get.param', []);
 
         //实例化控制器,并运行方法
-        $class_name = ucfirst(self::$data['mod_name']) . "\\Controller\\" . ucfirst(self::$data['cnt_name']) . "Controller";
-        if(!isset(\Root::$map[$class_name]) || !in_array(self::$data['act_name'], \Root::$map[$class_name]['methods'])){
+        $class_name = ucfirst($data['mod_name']) . "\\Controller\\" . ucfirst($data['cnt_name']) . "Controller";
+        if(!isset(\Root::$map[$class_name]) || !in_array($data['act_name'], \Root::$map[$class_name]['methods'])){
             $response->status(404);
             $response->end('[SSF]404 Not Found!');
             return;
@@ -252,30 +232,22 @@ class Http
 
         ob_start();
         $ob = new $class_name;
-        \Root::$user->log('INFO: Controller instance completed');
+        U()->log('INFO: Controller instance completed');
         if($rs = $ob->_start() !== false){
-            \Root::$user->log('INFO: _start() execution completed');
-            $content = call_user_func_array([$ob, self::$data['act_name']], $params);
-            \Root::$user->log('INFO: Action execution completed');
+            U()->log('INFO: _start() execution completed');
+            $content = call_user_func_array([$ob, $data['act_name']], $params);
+            U()->log('INFO: Action execution completed');
             $ob->_end();
-            \Root::$user->log('INFO: _end() execution completed');
+            U()->log('INFO: _end() execution completed');
         }else{
-            \Root::$user->log('INFO: _start() execution finish');
+            U()->log('INFO: _start() execution finish');
         }
 
         if(empty($content) || $content === false || $content === true)$content = ob_get_clean();
 
-        //记录缓存
-        if(C('HTTP.cache_time')){
-            $key = md5(json_encode([self::$data['server']['request_uri'], $_POST, self::$data['input'], $_FILES]));
-            cache('page_' . $key, $content, C('HTTP.cache_time'));
-        }
-
-        if(C('HTTP.gzip'))$response->gzip(C('HTTP.gzip'));
-
-        \Root::$user->save();
+        U()->save();
 
         $response->end($content);
-        T('__PROCESS')->incr(\Root::$serv->worker_pid, 'sendout');
+        T('__PROCESS')->incr('pid_' . \Root::$serv->worker_pid, 'sendout');
     }
 }

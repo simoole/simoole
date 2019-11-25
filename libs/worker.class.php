@@ -14,9 +14,6 @@ Class Worker
     //Worker进程的操作系统进程ID
     Public $pid = null;
 
-    //临时表
-    Public $tmpTables = [];
-
     /**
      * 工作/任务进程启动回调
      * @param swoole_server $server
@@ -28,8 +25,8 @@ Class Worker
         //实例化进程对象
         \Root::$worker = new self();
         if($server->taskworker) {
-            @file_put_contents(TMP_PATH . "task_{$worker_id}.pid", $server->worker_pid);
-            \swoole_set_process_name("Tasker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
+            file_put_contents(TMP_PATH . "task_{$worker_id}.pid", $server->worker_pid);
+            swoole_set_process_name("Tasker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
             echo "TaskID[{$worker_id}] PID[". $server->worker_pid ."] creation finish!" . PHP_EOL;
             //路由任务配置
             foreach(\Root::$tasks as $conf){
@@ -38,14 +35,18 @@ Class Worker
                 }
             }
         } else {
-            @file_put_contents(TMP_PATH . "worker_{$worker_id}.pid", $server->worker_pid);
-            \swoole_set_process_name("Worker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
+            file_put_contents(TMP_PATH . "worker_{$worker_id}.pid", $server->worker_pid);
+            swoole_set_process_name("Worker[{$worker_id}] process in <". __ROOT__ ."{$argv[0]}>");
             echo "WorkerID[{$worker_id}] PID[". $server->worker_pid ."] creation finish!" . PHP_EOL;
             //绑定信号处理
-            \swoole_process::signal(SIGUSR1, '\Root\Worker::signal');
+            \swoole_process::signal(SIGSEGV, '\Root\Worker::signal');
+
+            //工作进程启动后执行
+            $method = C('APP.worker_start');
+            if(!empty($method))$method();
         }
 
-        T('__PROCESS')->set($server->worker_pid, [
+        T('__PROCESS')->set('worker_' . $server->worker_id, [
             'id' => $worker_id,
             'type' => $server->taskworker ? 3:2,
             'pid' => $server->worker_pid,
@@ -54,11 +55,6 @@ Class Worker
             'memory_usage' => memory_get_usage(true),
             'memory_used' => memory_get_usage()
         ]);
-        \Root::$worker->createTmpTables();
-
-        //工作进程启动后执行
-        $method = C('APP.worker_start');
-        if(!empty($method))$method();
     }
 
     /**
@@ -74,7 +70,7 @@ Class Worker
      * 信号处理回调
      */
     Static Public function signal(){
-        T('__PROCESS')->set(\Root::$serv->worker_pid, [
+        T('__PROCESS')->set('worker_' . \Root::$serv->worker_id, [
             'memory_usage' => memory_get_usage(true),
             'memory_used' => memory_get_usage()
         ]);
@@ -89,7 +85,7 @@ Class Worker
     Static Public function pipeMessage(\swoole_server $server, int $from_worker_id, string $message)
     {
         $data = json_decode($message, true);
-        if(isset($data['act']) && property_exists(\Root::$worker, $data['act'])){
+        if(isset($data['act']) && method_exists(\Root::$worker, $data['act'])){
             $act = $data['act'];
             \Root::$worker->$act($data['data']);
         }
@@ -103,17 +99,19 @@ Class Worker
         \Root::loadUtil(APP_PATH);
         //加载应用类库
         \Root::loadClass(APP_PATH);
-        //加载配置文件
-        \Root::$conf = \Root::loadConf();
-        //初始化数据库连接池
-        \Root\Model::_initialize();
+        if(!\Root::$serv->taskworker){
+            //加载配置文件
+            \Root::$conf = \Root::loadConf();
+            //初始化数据库连接池
+            \Root\Model::_initialize();
+        }
     }
 
     /**
      * 利用进程管道发送数据
-     * @param string $act
-     * @param array $data
-     * @param int $worker_id
+     * @param string $act 方法名
+     * @param array $data 带入参数
+     * @param int $worker_id 目标工作进程ID，-1为全部进程
      * @return bool
      */
     Public function send(string $act, $data, int $worker_id = -1)
@@ -141,24 +139,12 @@ Class Worker
     }
 
     /**
-     * 生成所有临时表
+     * 解锁/唤醒协程
+     * @param int $cid 被挂起的协程ID
      */
-    Public function createTmpTables(){
-        foreach(\Root::$map as $classname => $row){
-            if(strpos($row['classname'], 'RelModel') > 0){
-                $tablename = substr($row['classname'], 0, -5);
-                \Root::$worker->tmpTables[$tablename]['model'] = new $classname;
-            }
-        }
-    }
-
-    /**
-     * 更新临时表
-     * @param $tablename
-     */
-    Public function updateTmpTables(string $tablename)
+    Public function unlock(int $cid)
     {
-        $this->tmpTables[$tablename]['model']->_update();
+        if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
     }
 
 }

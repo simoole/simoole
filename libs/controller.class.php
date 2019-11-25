@@ -35,9 +35,9 @@ Class Controller
      */
     protected function display(string $path = '', bool $isRuturn = false)
     {
-        $mod_name = \Root::$user->mod_name;
-        $cnt_name = \Root::$user->cnt_name;
-        $act_name = \Root::$user->act_name;
+        $mod_name = U('mod_name');
+        $cnt_name = U('cnt_name');
+        $act_name = U('act_name');
 
         if(!empty($path)){
             $arr = explode('/', $path);
@@ -54,8 +54,8 @@ Class Controller
         }
 
         $path = APP_PATH . $mod_name . '/view/' . $cnt_name . '/' . $act_name . TPL_EXT;
-        \Root::$user->response->header('Content-Type', 'text/html');
-        \Root::$user->response->header('charset', 'utf-8');
+        U('response')->header('Content-Type', 'text/html');
+        U('response')->header('charset', 'utf-8');
         \Root::loadFiles($path, $this->vars);
     }
 
@@ -67,8 +67,8 @@ Class Controller
     {
         if(!is_array($data))$data = [$data];
         $data = array_change_value($data);
-        \Root::$user->response->header('Content-Type', 'application/json');
-        \Root::$user->response->header('charset', 'utf-8');
+        U('response')->header('Content-Type', 'application/json');
+        U('response')->header('charset', 'utf-8');
         echo json_encode($data);
         return true;
     }
@@ -81,13 +81,13 @@ Class Controller
      */
     protected function success($msg, string $url = null, int $second = 5)
     {
-        \Root::$user->response->header('charset', 'utf-8');
+        U('response')->header('charset', 'utf-8');
         if($url === true || I('header.x-requested-with') == 'XMLHttpRequest'){
             $data = array_change_value(['status' => $url?:1, 'info' => $msg]);
-            \Root::$user->response->header('Content-Type', 'application/json');
+            U('response')->header('Content-Type', 'application/json');
             echo json_encode($data);
         }else{
-            \Root::$user->response->header('Content-Type', 'text/html');
+            U('response')->header('Content-Type', 'text/html');
             \Root::loadFiles(COMMON_PATH . 'tpl/success.tpl.php', [
                 'url' => $url,
                 'message' => $msg,
@@ -105,13 +105,13 @@ Class Controller
      */
     protected function error($msg, string $url = null, int $second = 5)
     {
-        \Root::$user->response->header('charset', 'utf-8');
+        U('response')->header('charset', 'utf-8');
         if($url === true || I('header.x-requested-with') == 'XMLHttpRequest'){
             $data = array_change_value(['status' => $url?:0, 'info' => $msg]);
-            \Root::$user->response->header('Content-Type', 'application/json');
+            U('response')->header('Content-Type', 'application/json');
             echo json_encode($data);
         }else{
-            \Root::$user->response->header('Content-Type', 'text/html');
+            U('response')->header('Content-Type', 'text/html');
             \Root::loadFiles(COMMON_PATH . 'tpl/error.tpl.php', [
                 'url' => $url,
                 'message' => $msg,
@@ -130,10 +130,10 @@ Class Controller
     {
         if(is_array($key)){
             foreach($key as $k => $v){
-                \Root::$user->response->header($k, $v);
+                U('response')->header($k, $v);
             }
         }else
-            \Root::$user->response->header($key, $value);
+            U('response')->header($key, $value);
     }
 
     /**
@@ -141,8 +141,9 @@ Class Controller
      * @param string $url 要被定向的URL
      */
     protected function redirect(string $url){
-        $this->header('location', $url);
-        \Root::$user->response->status(302);
+        $this->header('Location', $url);
+        U('response')->status(302);
+        return true;
     }
 
     /**
@@ -157,7 +158,7 @@ Class Controller
      */
     protected function cookie(string $key, string $value = '', int $expire = 0 , string $path = '/', string $domain  = '', bool $secure = false , bool $httponly = false)
     {
-        \Root::$user->response->cookie($key, $value, $expire, $path, $domain, $secure, $httponly);
+        U('response')->cookie($key, $value, $expire, $path, $domain, $secure, $httponly);
     }
 
     public function _start()

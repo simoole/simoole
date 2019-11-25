@@ -23,7 +23,7 @@ Class Model {
             //是否启用连接池
             if(!isset($conf['DB_POOL']) || !$conf['DB_POOL'])continue;
             $type = $conf['DB_TYPE']?:'mysql';
-            $classname = "\\Root\\Db\\{$type}PDO";
+            $classname = "\\Root\\Db\\{$type}CO";
             if(is_string($name))
                 $classname::_initialize($conf, $name);
             else
@@ -40,7 +40,7 @@ Class Model {
             $this->dbname = isset($this->config['DB_NAME']) ? $this->config['DB_NAME'] : $dbname;
             $dbname = $dbname ? : 'DB_CONF';
             $type = $this->config['DB_TYPE']?:'mysql';
-            $classname = "\\Root\\Db\\{$type}PDO";
+            $classname = "\\Root\\Db\\{$type}CO";
             $this->db = new $classname($this->config, $dbname);
         }
     }
@@ -147,7 +147,7 @@ Class Model {
     public function order(string $order, string $asc = '', string $table = null)
     {
         if(strpos($order, '.') !== false){
-            $arr = explode($order, '.');
+            $arr = explode('.', $order);
             $table = $arr[0];
             $order = $arr[1];
         }
@@ -169,15 +169,13 @@ Class Model {
 
     /**
      * 查询记录集
-     * @param  int $cache 是否使用缓存（效率较低的语句建议开启缓存） 0-不使用 1-使用 2-上锁
+     * @param  int $islock 是否上锁 0-不上锁 1-上锁
      * @return array 结果集数组
      */
-    public function select(int $cache = 0)
+    public function select(int $islock = 0)
     {
-        if($cache == 1)
+        if($islock)
             $rs = $this->db->select(true);
-        elseif($cache == 2)
-            $rs = $this->db->select(false, true);
         else
             $rs = $this->db->select();
         return $rs;
@@ -185,15 +183,13 @@ Class Model {
 
     /**
      * 查询单条记录
-     * @param int $cache 是否使用缓存（效率较低的语句建议开启缓存） 0-不使用 1-使用 2-上锁
+     * @param int $islock 是否上锁 0-不上锁 1-上锁
      * @return array 结果集数组
      */
-    public function getone(int $cache = 0)
+    public function getone(int $islock = 0)
     {
-        if($cache == 1)
+        if($islock)
             $rs = $this->db->getone(true);
-        elseif($cache == 2)
-            $rs = $this->db->getone(false, true);
         else
             $rs = $this->db->getone();
         return $rs;
@@ -387,21 +383,8 @@ Class Model {
     Public function query(string $sql)
     {
         $rs = $this->db->query($sql);
-        if(!$rs){
-            $err = $this->link->errorInfo();
-            \Root::error("SQL执行出错！", "错误原因：". join("\n", $err) ."\nSQL语句：{$sql}", E_USER_WARNING);
-            return false;
-        }else{
-            $rs = $rs->fetchall();
-            $put = [];
-            foreach($rs as $key => $row){
-                foreach($row as $k => $r){
-                    if(!is_numeric($k))
-                        $put[$key][$k] = $r;
-                }
-            }
-            return $put;
-        }
+        if(!$rs)return false;
+        return $rs->fetchall();
     }
 
     /**
@@ -439,27 +422,6 @@ Class Model {
     Public function rollBack()
     {
         return $this->db->rollBack();
-    }
-
-    /**
-     * 创建临时表
-     * @param bool $tablename 临时表名称
-     * @param string $sql 临时表SQL语句
-     * @return boolean
-     */
-    Public function createTmp(string $tablename = null, string $sql = null)
-    {
-        return $this->db->createTmp($tablename, $sql);
-    }
-
-    /**
-     * 更新临时表
-     * @param $tablename 要更新的临时表名
-     * @return boolean
-     */
-    Public function updateTmp(string $tablename)
-    {
-        return $this->db->updateTmp($tablename);
     }
 
 }

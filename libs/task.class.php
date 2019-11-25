@@ -20,7 +20,7 @@ class Task
      */
     Static Public function start(\swoole_server $serv, int $task_id, int $worker_id, $data)
     {
-        T('__PROCESS')->incr($serv->worker_pid, 'receive');
+        T('__PROCESS')->incr('worker_' . $serv->worker_id, 'receive');
 
         $json = $data;
 
@@ -53,7 +53,7 @@ class Task
             }
         }
 
-        \Root::$user = new User($data);
+        \Root::$user[getcid()] = new User($data);
 
         //实例化控制器,并运行方法
         $class_name = ucfirst($data['mod_name']) . "\\Controller\\" . ucfirst($data['cnt_name']) . "Controller";
@@ -65,27 +65,27 @@ class Task
 
         ob_start();
         $ob = new $class_name;
-        \Root::$user->log('INFO: Controller instance completed');
+        U()->log('INFO: Controller instance completed');
         if($rs = $ob->_start() !== false){
-            \Root::$user->log('INFO: _start() execution completed');
+            U()->log('INFO: _start() execution completed');
             $content = $ob->$actname($json['data']);
-            \Root::$user->log('INFO: Action execution completed');
+            U()->log('INFO: Action execution completed');
             $ob->_end();
-            \Root::$user->log('INFO: _end() execution completed');
+            U()->log('INFO: _end() execution completed');
         }else{
-            \Root::$user->log('INFO: _start() execution finish');
+            U()->log('INFO: _start() execution finish');
         }
 
         if(empty($content))$content = ob_get_clean();
 
-        \Root::$user->save();
+        U()->save();
 
         $serv->finish(json_encode(['status' => 1, 'info' => $content]));
 
         //回收内存
-        \Root::$user = null;
+        \Root::$user[getcid()] = null;
 
-        T('__PROCESS')->set($serv->worker_pid, [
+        T('__PROCESS')->set('worker_' . $serv->worker_id, [
             'memory_usage' => memory_get_usage(true),
             'memory_used' => memory_get_usage()
         ]);
@@ -124,7 +124,7 @@ class Task
     Public function add($data, callable $callback = null)
     {
         static $i = 0;
-        $user = \Root::$user;
+        $user = U();
         $datas = [
             'server' => array_diff_key($user->server, $user->header),
             'header' => $user->header,

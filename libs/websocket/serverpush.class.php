@@ -10,14 +10,10 @@ namespace Root\Websocket;
 class ServerPush
 {
     Protected $fd = null;
-    //Public $fds = [];
 
     Public function __construct()
     {
-        $this->fd = \Root::$user->fd;
-//        foreach(\Root::$serv->connections as $fd){
-//            $this->fds[] = $fd;
-//        }
+        $this->fd = U('fd');
     }
 
     Public function _before_open()
@@ -127,10 +123,8 @@ class ServerPush
     protected function push($data, int $fd = null)
     {
         if(empty($fd))$fd = $this->fd;
-        if(!$datas = $this->_before_push($data, $fd)){
-            return;
-        }
-        $data = $datas[0];
+        if(!$datas = $this->_before_push($data, $fd))return;
+        $data = array_change_value($datas[0]);
         $fd = $datas[1];
         \Root\Websocket::push($fd, $data);
     }

@@ -11,7 +11,7 @@
  * @param array $_config 多维数组二
  * @return Array 合并后的多维数组
  */
-function array_mer($config, $_config)
+function array_mer(array $config, array $_config)
 {
 	foreach($_config as $key => $val){
 		if(array_key_exists($key, $config) && is_array($val)){
@@ -47,9 +47,9 @@ function array_key_merge()
  * @param string $string 待加密的字符串
  * @param bool|true $isNumber 是否为纯数字
  */
-function createKey(string $string, bool $isNumber = false)
+function createKey(string $string, bool $isNumber = false, string $keyt = null)
 {
-    $keyt = C('KEYT');
+    $keyt = $keyt ?? C('KEYT');
     $array = str_split(sha1($string));
     $arr = [];
     foreach($array as $char){
@@ -73,36 +73,35 @@ function createKey(string $string, bool $isNumber = false)
 /**
  * SESSION控制函数
  * @param string $key
- * @param string $val
+ * @param string $val [NULL]-获取session值|[START]-开启session|[ID]-获取sessionid|[HAS]-判断KEY值是否存在|[CLEAR]-清空session
  * @return boolean|multitype:
  */
-function session($key, $val = '[NULL]')
+function session(string $key, $val = '[NULL]')
 {
 	switch ($key){
 		case '[START]':
-		    if(is_object(\Root::$user->session)){
+		    if(is_object(U('session'))){
 		        trigger_error('session_start() 只能执行一次！', E_USER_WARNING);
 		        return false;
             }
 			$id = is_string($val) && $val !== '[NULL]' ? $val : null;
-            \Root::$user->session = new \Root\Session($id);
+            U()->session = new \Root\Session($id);
 			return false;
 		case '[ID]':
-			return \Root::$user->session->getId();
+			return U()->session->getId();
 		case '[HAS]':
 			if(empty($val) || $val === '[NULL]')return false;
 			return \Root\Session::has($val);
 		case '[CLEAR]':
-            \Root::$user->session->save([]);
-			$_SESSION = [];
+            U('session')->save([]);
 		default:
 			if($val === '[NULL]'){
 				if(substr($key, 0, 1) === '?')
-					return \Root::$user->session->exist(substr($key, 1));
+					return U('session')->exist(substr($key, 1));
 				else{
 					$arr = explode('.', $key);
-					if(!\Root::$user->session->exist($arr[0])) return false;
-					$data = \Root::$user->session->get($arr[0]);
+					if(!U('session')->exist($arr[0])) return false;
+					$data = U('session')->get($arr[0]);
 					unset($arr[0]);
 					foreach($arr as $v){
 						if(isset($data[$v])){
@@ -114,17 +113,15 @@ function session($key, $val = '[NULL]')
 					return $data;
 				}
 			} elseif ($val === null){
-                \Root::$user->session->del($key);
-                unset($_SESSION[$key]);
+                U('session')->del($key);
             } else {
 				if(strpos($key, '.') === false){
-                    \Root::$user->session->set($key, $val);
-					$_SESSION[$key] = $val;
+                    U('session')->set($key, $val);
 					return true;
 				} else {
 					$arr = explode('.', $key);
-                    if(!\Root::$user->session->exist($arr[0])) return false;
-                    $datas = \Root::$user->session->getData();
+                    if(!U('session')->exist($arr[0])) return false;
+                    $datas = U('session')->getData();
 					$data = &$datas[$arr[0]];
 					unset($arr[0]);
 					foreach($arr as $v){
@@ -135,8 +132,7 @@ function session($key, $val = '[NULL]')
 						}
 					}
 					$data = $val;
-                    \Root::$user->session->save($datas);
-                    $_SESSION = $datas;
+                    U('session')->save($datas);
 					return true;
 				}
 			}
@@ -148,7 +144,7 @@ function session($key, $val = '[NULL]')
  * @param $key 配置路径
  * @return mixed
  */
-function C($key, $val = null)
+function C(string $key, $val = null)
 {
     if($val === null){
         $arr = explode('.', $key);
@@ -175,29 +171,22 @@ function C($key, $val = null)
  */
 function M(string $tablename = null, string $dbname = null)
 {
-	static $model = [];
-	static $diskeys = [];
-	if($tablename == '__cleanup'){
-	    foreach($diskeys as $key){
-            unset($model[$key]);
-        }
-        $diskeys = [];
-        return true;
-    }
     if(empty($dbname)){
 	    $dbname = 'DB_CONF';
-	    if(isset($GLOBALS['DATABASE_CONF_KEY']) && C($GLOBALS['DATABASE_CONF_KEY']))
-            $dbname = $GLOBALS['DATABASE_CONF_KEY'];
+	    if(C(U('dbname')))
+            $dbname = U('dbname');
     }
-	$guid = $dbname . ($tablename?:'tb_');
-	if(!isset($model[$guid])){
-		$_model = new \Root\Model($dbname);
-		if(!is_object($_model->db) || !is_object($_model->db->link))return false;
-        $model[$guid] = $_model;
-		if(!empty($tablename))$_model->table($tablename);
-        if(empty($_model->config['DB_POOL']))$diskeys[] = $guid;
-	}
-	return $model[$guid];
+    if(!C($dbname)){
+        trigger_error("Database config \"{$dbname}\" is not exist!", E_ERROR);
+        return false;
+    }
+    $_model = new \Root\Model($dbname);
+    if(!is_object($_model->db) || !is_object($_model->db->link)){
+        trigger_error("Database config \"{$dbname}\" can't instantiate!", E_ERROR);
+        return false;
+    }
+    if(!empty($tablename))$_model->table($tablename);
+    return $_model;
 }
 
 /**
@@ -206,55 +195,40 @@ function M(string $tablename = null, string $dbname = null)
  * @param string $dbname 数据库名
  * @return Root\Model
  */
-function D($tablename, $dbname = null)
+function D(string $tablename, string $dbname = null)
 {
-	static $model = [];
-    static $diskeys = [];
-    if($tablename == '__cleanup'){
-        foreach($diskeys as $key){
-            unset($model[$key]);
-        }
-        $diskeys = [];
-        return true;
-    }
+    $user = U();
     if(empty($dbname)){
         $dbname = 'DB_CONF';
-        if(isset($GLOBALS['DATABASE_CONF_KEY']) && C($GLOBALS['DATABASE_CONF_KEY']))
-            $dbname = $GLOBALS['DATABASE_CONF_KEY'];
+        if(C(U('dbname')))
+            $dbname = U('dbname');
     }
-	$guid = $dbname . ($tablename?:'tb_');
-	if(!isset($model[$guid])){
-		if(empty($tablename)){
-            $_model = new \Root\Model($dbname);
-            if(!is_object($_model->db) || !is_object($_model->db->link))return false;
-            $model[$guid] = $_model;
-			return $_model;
-		}
-		$arr = explode(':', $tablename);
+    if(!C($dbname)){
+        trigger_error("Database config \"{$dbname}\" is not exist!", E_ERROR);
+        return false;
+    }
+    $arr = explode(':', $tablename);
 
-		if(is_object(\Root::$user) && isset(\Root::$user->mod_name))
-		    $module = \Root::$user->mod_name;
-		else
-            $module = C('HTTP.module');
-		if(count($arr) == 2){
-			$module = $arr[0];
-			$tablename = $arr[1];
-		}
+    if(is_object($user) && isset($user->mod_name))
+        $module = $user->mod_name;
+    else
+        $module = C('HTTP.module');
+    if(count($arr) == 2){
+        $module = $arr[0];
+        $tablename = $arr[1];
+    }
 
-        $class_name = ucfirst($module) . "\\Model\\" . ucfirst($tablename) . "Model";
-        if(!isset(\Root::$map[$class_name]) || !class_exists($class_name)){
-            $_model = new \Root\Model($dbname);
-            if(!is_object($_model->db) || !is_object($_model->db->link))return false;
-            if(!empty($tablename))$_model->table($tablename);
-        }else{
-            $_model = new $class_name($dbname);
-            if(!is_object($_model->db) || !is_object($_model->db->link))return false;
-        }
-        $model[$guid] = $_model;
-        if(empty($_model->config['DB_POOL']))$diskeys[] = $guid;
-	}
-    if(method_exists($model[$guid], '_init'))$model[$guid]->_init();
-	return $model[$guid];
+    $class_name = ucfirst($module) . "\\Model\\" . ucfirst($tablename) . "Model";
+    if(!isset(\Root::$map[$class_name]) || !class_exists($class_name)){
+        trigger_error($class_name . ' is not exist!', E_ERROR);
+        return false;
+    }else{
+        $_model = new $class_name($dbname);
+        if(!is_object($_model->db) || !is_object($_model->db->link))return false;
+    }
+
+    if(method_exists($_model, '_init'))$_model->_init();
+    return $_model;
 }
 
 /**
@@ -266,11 +240,12 @@ function D($tablename, $dbname = null)
 function I($name, $default = false)
 {
 	$arr = explode('.', strtolower($name));
-	if(($user = \Root::$user) === null)return $default;
+	$_arr = explode('.', $name);
+	if(!$user = U())return $default;
 	if(in_array($arr[0], ['get','post','cookie','server','files','header','request','input'])){
 		$act = $arr[0];
-		$data = \Root::$user->$act;
-		if($act == 'input')return $data?:$default;
+		$data = \Root::$user[getcid()]->$act;
+		if(!empty($data) && is_string($data))return $data;
 		if(!is_array($data) || empty($data)){
 			return $default;
 		}
@@ -278,6 +253,8 @@ function I($name, $default = false)
 			if($i > 0 && !empty($ar)){
 				if(array_key_exists($ar, $data))
 					$data = $data[$ar];
+				elseif(array_key_exists($_arr[$i], $data))
+                    $data = $data[$_arr[$i]];
 				else{
 					$data = $default;
 					break;
@@ -291,35 +268,93 @@ function I($name, $default = false)
 }
 
 /**
+ * COOKIE控制函数
+ * @param string $key cookie名
+ * @param string $val cookie值-设置cookie值、null-删除cookie、'[NULL]'-获取cookie值（默认）
+ * @param int $expire 到期时间 (默认会话级)
+ * @return boolean|multitype:
+ */
+function cookie(string $key, string $val = '[NULL]', int $expire = null)
+{
+    $user = \Root::$user[getcid()];
+    if($val === '[NULL]'){
+        //查询
+        $arr = explode('.', $key);
+        if(empty($user->cookie) || empty($user->cookie[$arr[0]])) return false;
+        $data = $user->cookie[$arr[0]];
+        unset($arr[0]);
+        foreach($arr as $v){
+            if(isset($data[$v])){
+                $data = $data[$v];
+            }else{
+                return false;
+            }
+        }
+        return $data;
+    } elseif ($val === null){
+        //删除
+        $user->response->cookie($key, '', -1);
+    } else {
+        //设置
+        if(strpos($key, '.') === false){
+            if($expire === null)
+                $user->response->cookie($key, $val);
+            else
+                $user->response->cookie($key, $val, $expire);
+            return true;
+        } else {
+            $arr = explode('.', $key);
+            if(empty($user->cookie[$arr[0]])) return false;
+            $datas = $user->cookie[$arr[0]];
+            $data = &$datas[$arr[0]];
+            unset($arr[0]);
+            foreach($arr as $v){
+                if(isset($data[$v])){
+                    $data = &$data[$v];
+                }else{
+                    return false;
+                }
+            }
+            $data = $val;
+            if($expire === null)
+                $user->response->cookie($arr[0], $datas);
+            else
+                $user->response->cookie($arr[0], $datas, $expire);
+            return true;
+        }
+    }
+}
+
+/**
  * 记录日志
  * @param string $msg 要记录的日志信息
  * @param string $prefix 前缀
  */
 function L($msg, $prefix = 'user', $dirname = null)
 {
-	switch (C('LOG.split')){
-		case 'i': $d = '_Y_m_d_H_i';break;
-		case 'h': $d = '_Y_m_d_H';break;
-		case 'd': $d = '_Y_m_d';break;
-		case 'm': $d = '_Y_m';break;
-		case 'w': $d = '_Y_W';break;
-		default:$d = '';
-	}
+    switch (C('LOG.split')){
+        case 'i': $d = '_Y_m_d_H_i';break;
+        case 'h': $d = '_Y_m_d_H';break;
+        case 'd': $d = '_Y_m_d';break;
+        case 'm': $d = '_Y_m';break;
+        case 'w': $d = '_Y_W';break;
+        default:$d = '';
+    }
 
-	$dir = LOG_PATH;
-	if(!empty($dirname)){
-		$dir = $dir . $dirname . '/';
-		if(!is_dir($dir) && !mkdir($dir, 0777, true)){
-			trigger_error($dir . ' 该目录没有可写权限！', E_USER_WARNING);
-			return;
-		}
-		chmod($dir, 0777);
-	}
-	if($d === '')
-		$filepath = $dir . $prefix . 'record.log';
-	else
-		$filepath = $dir . $prefix . date($d) . '.log';
-	if(!is_file($filepath) && ($keep = C('LOG.keep')) > 0){
+    $dir = LOG_PATH;
+    if(!empty($dirname)){
+        $dir = $dir . $dirname . '/';
+        if(!is_dir($dir) && !mkdir($dir, 0777, true)){
+            trigger_error($dir . ' 该目录没有可写权限！', E_USER_WARNING);
+            return;
+        }
+        chmod($dir, 0777);
+    }
+    if($d === '')
+        $filepath = $dir . $prefix . 'record.log';
+    else
+        $filepath = $dir . $prefix . date($d) . '.log';
+    if(!is_file($filepath) && ($keep = C('LOG.keep')) > 0){
         $files = scandir($dir);
         $_files = [];
         foreach($files as $file){
@@ -344,8 +379,9 @@ function L($msg, $prefix = 'user', $dirname = null)
             }
         }
     }
-	if(!is_string($msg))$msg = var_export($msg, true);
-    @file_put_contents($filepath, $msg . PHP_EOL, FILE_APPEND);
+    if(!is_string($msg))$msg = var_export($msg, true);
+    if(getcid() < 0) return @file_put_contents($filepath, $msg . PHP_EOL, FILE_APPEND);
+    return \Swoole\Coroutine\System::writeFile($filepath, $msg . PHP_EOL, FILE_APPEND);
 }
 
 /**
@@ -362,33 +398,22 @@ function T(string $tablename){
 }
 
 /**
- * 缓存操作函数
- * @param string $key
- * @param string $val
- * @param string $_val 增量或减量
- * @return boolean|multitype
+ * 获取底层User实例或该实例的属性
+ * @param $pname 属性名称，默认返回User实例
+ * @param $value 属性赋值
+ * @return bool|string|object;
  */
-function cache($key, $val = '[NULL]', $_val = null)
-{
-	if($val === '[NULL]')return \Root\Cache::get($key);
-	elseif($val === '[INC]')return \Root\Cache::set($key, (int)\Root\Cache::get($key) + $_val?:1);
-	elseif($val === '[DEC]')return \Root\Cache::set($key, (int)\Root\Cache::get($key) - $_val?:1);
-	elseif($val === '[INSET]'){
-		$arr = \Root\Cache::get($key);
-		if(empty($arr))$arr = [];
-		$arr[] = $_val;
-		return \Root\Cache::set($key, $arr);
-	}elseif($val === '[OUTSET]'){
-		$arr = \Root\Cache::get($key);
-		if(empty($arr) || !in_array($_val, $arr))return false;
-		$_arr = [];
-		foreach($arr as $v){
-			if($v !== $_val)$_arr[] = $v;
-		}
-		return \Root\Cache::set($key, $_arr);
-	}elseif($val === null)return \Root\Cache::rm($key);
-	elseif(is_array($key))return \Root\Cache::set($key);
-    else return \Root\Cache::set($key, $val, $_val);
+function U(string $pname = null, $value = '[NULL]'){
+    $uid = \Swoole\Coroutine::getcid();
+    if(!isset(\Root::$user[$uid]))return false;
+
+    $user = \Root::$user[$uid];
+    if($pname === null)return $user;
+    if(!isset($user->$pname))return false;
+
+    if($value === '[NULL]')return $user->$pname;
+    $user->$pname = $value;
+    return true;
 }
 
 /**
@@ -499,29 +524,49 @@ function checkPort($host, $port)
 /**
  * 加锁
  * @param string $name 锁名
- * @param int $type 锁类型 0-自旋锁 1-异步锁
+ * @param int $type 锁类型 0-自旋锁 1-异步锁 2-协程锁
  * @param int $expire 有效期(秒) 默认30秒，最大60秒
  */
 function lock(string $name, int $type = 0, int $expire = 0)
 {
-    $lock = T('__LOCK')->get($name);
-    if($lock === false || $lock['timeout'] < time()){
-        if(!!$lock)T('__LOCK')->del($name);
-        T('__LOCK')->set($name, [
-            'type' => $type?1:0,
-            'timeout' => time() + ($expire ?: 30)
-        ]);
-        return true;
+    if(!isset($GLOBALS['__queue']))$GLOBALS['__queue'] = [];
+    $expire = $expire === 0 ? 30 : ($expire > 60 ? 60 : $expire);
+    if($type == 2){
+        if(!isset($GLOBALS['__queue'][$name])){
+            $GLOBALS['__queue'][$name] = [];
+            \Swoole\Timer::after($expire * 1000, function() use ($name){
+                if(empty($GLOBALS['__queue'][$name]))unset($GLOBALS['__queue'][$name]);
+            });
+        }else{
+            $cid = getcid();
+            \Swoole\Timer::after($expire * 1000, function() use ($cid, $name){
+                if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
+                if(empty($GLOBALS['__queue'][$name]))unset($GLOBALS['__queue'][$name]);
+            });
+            $GLOBALS['__queue'][$name][] = $cid;
+            \Swoole\Coroutine::yield();
+            $GLOBALS['__queue'][$name] = array_diff($GLOBALS['__queue'][$name], [$cid]);
+        }
     }else{
-        //自旋锁
-        if($lock['type'] == 0){
-            usleep(50000);
-            lock($name);
-        //异步锁
-        }elseif($lock['type'] == 1){
+        $lock = T('__LOCK')->get($name);
+        if($lock === false || $lock['timeout'] < time()){
+            if(!!$lock)T('__LOCK')->del($name);
+            T('__LOCK')->set($name, [
+                'type' => $type?1:0,
+                'timeout' => time() + ($expire ?: 30)
+            ]);
+            return true;
+        }else{
+            //自旋锁
+            if($lock['type'] == 0){
+                \Swoole\Coroutine::sleep(0.05);
+                lock($name, $type, $expire);
+                //异步锁
+            }elseif($lock['type'] == 1){
+                return false;
+            }
             return false;
         }
-        return false;
     }
 }
 
@@ -548,7 +593,15 @@ function trylock(string $name)
  */
 function unlock(string $name)
 {
-    return T('__LOCK')->del($name);
+    if(T('__LOCK')->exist($name))T('__LOCK')->del($name);
+    elseif(isset($GLOBALS['__queue'][$name])){
+        //唤醒队列中的一个协程
+        if($cid = array_shift($GLOBALS['__queue'][$name]))
+            if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
+        //当队列为空则完全解锁
+        if(empty($GLOBALS['__queue'][$name]))unset($GLOBALS['__queue'][$name]);
+    }
+    return true;
 }
 
 /**
@@ -558,10 +611,19 @@ function unlock(string $name)
 function getRedis()
 {
     static $instance = null;
-    if($instance === null){
+    if($instance === null || !$instance->ping()){
         $instance = new \Redis();
         $instance->pconnect(C('REDIS.host'), C('REDIS.port'), 0);
         $instance->auth(C('REDIS.pass'));
     }
     return $instance;
+}
+
+/**
+ * 获取协程ID
+ * @return mixed
+ */
+function getcid()
+{
+    return \Swoole\Coroutine::getcid();
 }

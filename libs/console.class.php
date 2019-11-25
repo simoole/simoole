@@ -113,7 +113,7 @@ class Console {
             }
         }
 
-        $mod_name = is_object(\Root::$user) ? \Root::$user->mod_name : 'common';
+        $mod_name = U('mod_name') ?: 'common';
         if(C('LOG.errorfile') == 'xml')
             L(array2xml($data) . "\n\n", 'error', $mod_name);
         else

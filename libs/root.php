@@ -27,7 +27,7 @@ Class Root
     Static Public $worker = null;
 
     //用户对象
-    Static Public $user = null;
+    Static Public $user = [];
 
     //任务配置
     Static Public $tasks = [];
@@ -41,8 +41,8 @@ Class Root
     //所有类库文件的地图
     Static Public $map = [];
 
-    //关联模型临时数据表
-    Static Public $tmpTables = [];
+    //全局锁
+    Static Public $lock = null;
 
     /**
      * 主框架运行
@@ -84,12 +84,14 @@ Class Root
         //开启session
         @session_start();
         echo "Framework Starting...", PHP_EOL;
+        //创建全局锁
+        self::$lock = new \Swoole\Lock(SWOOLE_MUTEX);
         //加载函数库
         self::loadUtil();
         //加载框架类库
         self::loadClass();
         //生成本实例的hash值
-        define('HASH_KEY', createKey(time()));
+        define('HASH_KEY', createKey(time(), false, 'sXODQpGzexIwo8gJqdEj94ZFPc2KNUC3kBaTmMSL07r6u15yYnHifVlWbtvhAR'));
         //加载配置文件
         self::$conf = self::loadConf();
         //模板文件后缀
@@ -102,8 +104,6 @@ Class Root
         }
         date_default_timezone_set(self::$conf['TIMEZONE']);
 
-        //清空缓存
-        \Root\Cache::clear(true);
         @unlink(TMP_PATH . 'running.tmp');
 
         //启动异常处理和控制台
@@ -117,9 +117,6 @@ Class Root
             return;
         }
 
-        //创建定时器
-        if(C('SERVER.enable_child'))\Root\Timer::create();
-
         $conf = self::$conf['SERVER'];
         $setup = [
             'pid_file' => TMP_PATH . 'server.pid',
@@ -129,7 +126,8 @@ Class Root
             'backlog' => $conf['backlog'],
             //'open_tcp_nodelay' => true,
             'max_request' => $conf['max_request'],
-            'dispatch_mode' => $conf['dispatch_mode']
+            'dispatch_mode' => $conf['dispatch_mode'],
+            'max_coroutine' => $conf['max_coroutine']
         ];
         self::$tasks = C('TASK')?:[];
         if(!empty(self::$tasks)){
@@ -182,6 +180,9 @@ Class Root
             self::$serv->on('finish', 'Root\Task::finish');
         }
 
+        //创建定时器
+        if(C('SERVER.enable_child'))\Root\Timer::create();
+
         //实例启动前执行
         $method = C('APP.before_start');
         if(!empty($method))$method();
@@ -195,7 +196,7 @@ Class Root
     {
         $pid = @file_get_contents(TMP_PATH . 'server.pid');
         if($pid){
-            if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 15);
+            if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, SIGTERM);
             else{
                 foreach(glob(TMP_PATH . '*.pid') as $filename){
                     $pid = @file_get_contents($filename);
@@ -218,7 +219,7 @@ Class Root
         if($pid)$rs = \swoole_process::kill($pid, 0);
         if($rs){
             echo "Framework is running..", PHP_EOL, PHP_EOL;
-            \swoole_process::kill($pid, SIGUSR1);
+            \swoole_process::kill($pid, SIGSEGV);
             $i = 0;
             while(!file_exists(TMP_PATH . 'status.info')){
                 usleep(100000);
@@ -239,7 +240,7 @@ Class Root
     {
         $pid = @file_get_contents(TMP_PATH . 'server.pid');
         if($pid){
-            if(swoole_process::kill($pid, 0))swoole_process::kill($pid, 15);
+            if(swoole_process::kill($pid, 0))swoole_process::kill($pid, SIGTERM);
             foreach(glob(TMP_PATH . '*.pid') as $filename){
                 $pid = @file_get_contents($filename);
                 if(\swoole_process::kill($pid, 0))\swoole_process::kill($pid, 9);
@@ -258,7 +259,7 @@ Class Root
     {
         $pid = @file_get_contents(TMP_PATH . 'server.pid');
         if($pid){
-            swoole_process::kill($pid, SIGUSR2);
+            swoole_process::kill($pid, SIGUSR1);
             die("Reload signal has been issued!" . PHP_EOL);
         }
         die("Framework not started!" . PHP_EOL);
@@ -438,7 +439,7 @@ Class Root
                     'methods' => get_class_methods($classname)
                 ];
             }
-            require $path;
+            require_once $path;
         });
     }
 

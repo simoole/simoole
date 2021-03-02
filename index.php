@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 /**
  * 框架启动文件
@@ -6,10 +7,14 @@
  */
 
 // 检测环境
-if(version_compare(PHP_VERSION,'7.3.0','<'))
-    die('php version must be >= v7.3.0!' . PHP_EOL);
-if(substr(swoole_version(),0,1) == 4 && version_compare(swoole_version(),'4.4.0','<'))
-    die('swoole version must be >= v4.4.0!' . PHP_EOL);
+if(version_compare(PHP_VERSION,'7.4.0','<'))
+    die('php version must be >= v7.4.0!' . PHP_EOL);
+if(substr(swoole_version(),0,1) == 4 && version_compare(swoole_version(),'4.5.0','<'))
+    die('swoole version must be >= v4.5.0!' . PHP_EOL);
 
-require './libs/root.php';
-\Root::run();
+require __DIR__ . '/core/root.php';
+
+//自动加载composer
+//require './vendor/autoload.php';
+
+\Core\Root::run();

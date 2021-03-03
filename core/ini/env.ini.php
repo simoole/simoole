@@ -31,7 +31,10 @@ define('MEMORY_WEBSOCKET_HEART', 9); //获取指定websocket连接数据，心�
 define('APP_PATH', __ROOT__ . __APP__ .'/');
 //应用公共文件目录
 define('COMMON_PATH', APP_PATH . 'common/');
+if(!is_dir(COMMON_PATH))@mkdir(COMMON_PATH);
 //缓存目录路径
 define('TMP_PATH', __ROOT__ . 'tmp/');
+if(!is_dir(TMP_PATH))@mkdir(TMP_PATH);
 //日志目录路径
 define('LOG_PATH', __ROOT__ . 'log/');
+if(!is_dir(LOG_PATH))@mkdir(LOG_PATH);

@@ -61,7 +61,8 @@ class ChildProc extends Proc
                     return $this->websocket_data['fd_' . $data['fd']];
                 else return null;
             case MEMORY_WEBSOCKET_SET:
-                $this->websocket_data['fd_' . $data['fd']] = array_mer($this->websocket_data['fd_' . $data['fd']], $data['data']);
+                if(!isset($this->websocket_data['fd_' . $data['fd']]))$this->websocket_data['fd_' . $data['fd']] = $data['data'];
+                else $this->websocket_data['fd_' . $data['fd']] = array_mer($this->websocket_data['fd_' . $data['fd']], $data['data']);
                 return true;
             case MEMORY_WEBSOCKET_DEL:
                 unset($this->websocket_data['fd_' . $data['fd']]);

@@ -578,7 +578,8 @@ function mtime()
  * @param array $arr 要解码的ASCII数组
  * @return string
  */
-function decodeASCII($arr){
+function decodeASCII(array $arr): string
+{
     $utf = '';
     foreach($arr as $val){
         $dec = $val;
@@ -601,7 +602,8 @@ function decodeASCII($arr){
  * @param string $c 要编码的字符串
  * @return array
  */
-function encodeASCII($str){
+function encodeASCII(string $str): array
+{
     $c = preg_split('/(?<!^)(?!$)/u', $str);
     $len = count($c);
     $a = 0;

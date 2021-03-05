@@ -99,7 +99,7 @@ SSF为开发者提供了许多简单便捷的全局函数。开发者也可以�
 - $tableName 自定义模型名称或去掉前缀配置的数据表名称
 - $dbConfName 数据库配置的键名，默认DB_CONF
 - 返回Model实例
-> 与M()最大的区别是可以加载自定义数据模型，目前支持的数据模型底层除原生Model外还有ViewModel和RelationModel(试验版)两种。
+> 与M()最大的区别是可以加载自定义数据模型。
 ```php
 //示例：用户数据模型[app/model/city.class.php]
 <?php

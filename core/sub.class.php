@@ -15,7 +15,12 @@ Class Sub
     Static Public function create()
     {
         static $num = 0;
-        self::$conf = Conf::process();
+        self::$conf = array_merge([
+            'child' => [
+                'worker_num' => 1, //子进程进程数量
+                'class_name' => '\Core\Util\Child' //子进程实例类名
+            ]
+        ], Conf::process());
         foreach (self::$conf as $name => $conf){
             for($n=0; $n<$conf['worker_num']; $n++){
                 self::$count ++;

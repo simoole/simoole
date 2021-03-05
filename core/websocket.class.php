@@ -296,7 +296,7 @@ abstract class Websocket
             \Swoole\Timer::tick(200, function (){
                 foreach(self::$fds as $i => $fd){
                     $info = Root::$serv->getClientInfo($fd);
-                    if($info['uid'] != Root::$serv->worker_id)
+                    if(isset($info['uid']) && $info['uid'] != Root::$serv->worker_id)
                         unset(self::$fds[$i]);
                     elseif(Root::$serv->isEstablished($fd))
                         Root::$serv->push($fd, pack('C',1), WEBSOCKET_OPCODE_PING);
@@ -341,7 +341,7 @@ abstract class Websocket
                 }
                 foreach(self::$fds as $i => $fd){
                     $info = Root::$serv->getClientInfo($fd);
-                    if($info['uid'] != Root::$serv->worker_id)
+                    if(isset($info['uid']) && $info['uid'] != Root::$serv->worker_id)
                         unset(self::$fds[$i]);
                 }
             });

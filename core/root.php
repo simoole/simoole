@@ -24,9 +24,6 @@ Class Root
     //用户对象
     Static Public $user = [];
 
-    //长连接通道
-    Static Public $clients = [];
-
     //所有类库文件的地图
     Static Public $map = [];
 
@@ -161,8 +158,14 @@ Class Root
     Static Public function reload()
     {
         $pid = @file_get_contents(TMP_PATH . 'server.pid');
-        if($pid){
+        if($pid && \Swoole\Process::kill($pid, 0)){
             \Swoole\Process::kill($pid, SIGUSR1);
+            $childs = glob(TMP_PATH . 'child_*.pid');
+            foreach($childs as $child){
+                if(strpos($child, 'child_0.pid') !== false)continue;
+                $_pid = @file_get_contents($child);
+                if(\Swoole\Process::kill($_pid, 0))\Swoole\Process::kill($_pid, SIGTERM);
+            }
             die("Reload signal has been issued!" . PHP_EOL);
         }
         die("Framework not started!" . PHP_EOL);

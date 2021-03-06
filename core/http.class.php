@@ -17,7 +17,7 @@ class Http
     Static Public function start(\swoole_server $server)
     {
         global $argv;
-        \swoole_set_process_name("Master process in <". __ROOT__ ."{$argv[0]}>");
+        \swoole_set_process_name("Master process in <". __ROOT__ .">");
 
         //实例启动后执行
         $method = C('APP.after_start');
@@ -48,7 +48,7 @@ class Http
     {
         global $argv;
         file_put_contents(TMP_PATH . 'manager.pid', $server->manager_pid);
-        \swoole_set_process_name("Manager process in <". __ROOT__ ."{$argv[0]}>");
+        \swoole_set_process_name("Manager process in <". __ROOT__ .">");
     }
 
     /**

@@ -11,12 +11,13 @@ Class Sub
     Static Public $count = 0;
     Static Public $procs = [];
     Static Public $contents = [];
+    Static Private $classes = [];
 
     Static Public function create()
     {
         static $num = 0;
         self::$conf = array_merge([
-            'child' => [
+            '__public' => [
                 'worker_num' => 1, //子进程进程数量
                 'class_name' => '\Core\Util\Child' //子进程实例类名
             ]
@@ -40,10 +41,10 @@ Class Sub
 
     Static Public function onStart($num, $process, $conf, $name)
     {
-        global $argv;
         $pid = getmypid();
         file_put_contents(TMP_PATH . 'child_'. $num .'.pid', $pid);
-        $process->name("Child[{$num}] process in <". __ROOT__ ."{$argv[0]}>");
+        $process->name("Child[{$num}] process in <". __ROOT__ .">");
+        echo "ChildID[{$num}] PID[". posix_getpid() ."] creation finish!" . PHP_EOL;
 
         //加载函数库
         Root::loadFunc(APP_PATH);
@@ -81,13 +82,30 @@ Class Sub
         $data = json_decode($data, true);
         if(json_last_error() !== JSON_ERROR_NONE || !isset($data['data']) || !isset($data['worker_id']) || $data['worker_id'] < 0 || $data['worker_id'] >= Conf::server('SWOOLE','worker_num') + self::$count || !isset($data['cid']))return;
         //是否是发送回调
-        if(isset($data['callback']) && $data['callback'] == 2 && \Swoole\Coroutine::exists($data['cid'])){
+        if(isset($data['callback']) && $data['callback'] == 2 && \Swoole\Coroutine::exists($data['cid'])) {
             self::$contents[$data['cid']] = $data['data'];
             \Swoole\Coroutine::resume($data['cid']);
             unset(self::$contents[$data['cid']]);
         }else{
             ob_start();
-            $content = Root::$worker->onMessage($data['data'], $data['worker_id']);
+            $_data = $data['data'];
+            if(isset($_data['__clsname']) && isset($_data['__actname'])){
+                if(get_class(Root::$worker) == trim($_data['__clsname'], '\\')){
+                    if(method_exists(Root::$worker, $_data['__actname'])){
+                        $content = call_user_func_array([Root::$worker, $_data['__actname']], $_data['__params']);
+                    }
+                }else{
+                    $class_name = $_data['__clsname'];
+                    if(!isset(self::$classes[$class_name])){
+                        self::$classes[$class_name] = new $class_name();
+                    }
+                    if(method_exists(self::$classes[$class_name], $_data['__actname'])){
+                        $content = call_user_func_array([self::$classes[$class_name], $_data['__actname']], $_data['__params']);
+                    }
+                }
+            }else{
+                $content = Root::$worker->onMessage($_data, $data['worker_id']);
+            }
             $_content = ob_get_clean();
             if(empty($content) && !empty($_content))$content = $_content;
             $content = $content ?: '';
@@ -151,7 +169,7 @@ Class Sub
             if(!$conf)return false;
             if(!isset($arr[(string)$worker_id])) $arr[(string)$worker_id] = 0;
             if($arr[(string)$worker_id] >= $conf['worker_num'])$arr[(string)$worker_id] = 0;
-            $num = 0;
+            $num = 1;
             foreach(Conf::process() as $name => $_conf){
                 if($name == $worker_id)break;
                 $num += $_conf['worker_num'];
@@ -179,5 +197,23 @@ Class Sub
     Static Public function unlock(int $cid)
     {
         if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
+    }
+
+    private $process_name = null;
+    private $class_name = null;
+    public $is_return = false;
+    public function __construct(string $process_name, string $class_name = null)
+    {
+        $this->process_name = $process_name;
+        $this->class_name = $class_name;
+    }
+
+    public function __call($name, $params = [])
+    {
+        return self::send([
+            '__clsname' => $this->class_name,
+            '__actname' => $name,
+            '__params' => $params
+        ], $this->process_name, $this->is_return);
     }
 }

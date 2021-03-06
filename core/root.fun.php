@@ -396,6 +396,39 @@ function U(string $pname = null, $value = '[NULL]'){
 }
 
 /**
+ * 实例化类
+ * @param string $name 要实例化的类（子进程名:类名）
+ * @param bool $is_return 是否接收返回值（子进程通信时会产生协程切换）
+ * @return \Core\Sub|mixed|null
+ */
+function make(string $name, bool $is_return = false)
+{
+    static $processes = [];
+    if(strpos($name, ':')){
+        [$process_name, $class_name] = explode(':', $name);
+        if(!$conf = \Core\Conf::process($process_name)){
+            $process_name = null;
+        }
+    }elseif($conf = \Core\Conf::process($name)){
+        $process_name = $name;
+        $class_name = $conf['class_name'] . 'Proc';
+    }else{
+        $class_name = $name;
+        $process_name = null;
+    }
+    if(!class_exists($class_name))return null;
+    if(!isset($processes[$name])){
+        if($process_name){
+            $processes[$name] = new \Core\Sub($process_name, $class_name);
+        }else{
+            $processes[$name] = new $class_name;
+        }
+    }
+    if($process_name)$processes[$name]->is_return = $is_return;
+    return $processes[$name];
+}
+
+/**
  * 生成随机码
  * @param int $len 随机码长度
  * @param bool|true $isNumber 是否为纯数字

@@ -28,7 +28,7 @@ Class Table
         foreach($conf as $tablename => $columns){
             if(!is_array($columns) || empty($columns) || !is_string($tablename))continue;
             //如果session驱动使用了redis，则不创建session内存表
-            if(Conf::server('SESSION','DRIVE') == 'REDIS')continue;
+            if(Conf::server('SESSION','DRIVE') == 'REDIS' && $tablename == '__SESSION')continue;
             if(isset(self::$table[$tablename]))continue;
             $total = isset($columns['__total']) ? $columns['__total'] : 10;
             if($total <= 0)continue;

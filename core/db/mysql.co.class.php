@@ -129,7 +129,7 @@ class mysqlCO
                         unset(self::$links[$uid][$name]);
                         if(empty(self::$links[$uid]))unset(self::$links[$uid]);
                         $this->link = null;
-                        if(isset($this->runlogs)){
+                        if(isset($this->runlogs) && !empty($this->runlogs)){
                             $name = \Core\Root::$worker->name ?? 'worker';
                             L($this->runlogs, $name, 'common');
                             unset($this->runlogs);
@@ -150,40 +150,55 @@ class mysqlCO
 	 */
 	public function table(string $table, string $asWord = '')
 	{
-	    static $tableField = [];
 		$this->table = $this->config['PREFIX'] . $table;
 		$this->_table = $table;
 		if(preg_match('/^[a-zA-Z]+\w*$/', $asWord))$this->asWord = $asWord;
-		if(!isset($tableField[$this->dbname . '.' . $this->table])){
-            $rs = $this->query("SHOW COLUMNS FROM `{$this->table}`");
-            if(!$rs){
-                trigger_error('数据表['. $this->dbname . '.' . $this->table .']不存在！', E_USER_WARNING);
-                return false;
+        if(!$tableFields = $this->_tableAnalyse($this->table))return false;
+//		if(!isset($tableField[$this->dbname . '.' . $this->table])){
+//            $rs = $this->query("SHOW COLUMNS FROM `{$this->table}`");
+//            if(!$rs){
+//                trigger_error('数据表['. $this->dbname . '.' . $this->table .']不存在！', E_USER_WARNING);
+//                return false;
+//            }
+//            $tableField[$this->dbname . '.' . $this->table] = [];
+//            while($row = $rs->fetch()) {
+//                $this->fields[$row['Field']] = null;
+//                $tableField[$this->dbname . '.' . $this->table][] = $row;
+//            }
+//        }else{
+		    foreach($tableFields as $row){
+                $this->fields[$row['Field']] = null;
             }
-            $tableField[$this->dbname . '.' . $this->table] = [];
-            while($row = $rs->fetch()) {
-                $this->fields[] = $row;
-                $field = $row['Field'];
-                $this->$field = null;
-                $tableField[$this->dbname . '.' . $this->table][] = $row;
-            }
-        }else{
-		    foreach($tableField[$this->dbname . '.' . $this->table] as $row){
-                $this->fields[] = $row;
-                $field = $row['Field'];
-                $this->$field = null;
-            }
-        }
+//        }
 		return true;
 	}
+
+	private function _tableAnalyse(string $table): array
+    {
+        $datatable = $this->dbname . '.' . $table;
+        if($data = G('database_' . $this->dbname)->$table){
+            return $data;
+        }
+        $rs = $this->query("SHOW COLUMNS FROM `{$table}`");
+        if(!$rs){
+            trigger_error('数据表['. $datatable .']不存在！', E_USER_WARNING);
+            return false;
+        }
+        $data = [];
+        while($row = $rs->fetch()) {
+            $data[] = $row;
+        }
+        G('database_' . $this->dbname)->$table = $data;
+        return $data;
+    }
 
 	/**
 	 * 输出字段
 	 */
 	public function __get(string $name)
 	{
-		foreach($this->fields as $row){
-			if($row['Field'] == $name)return $row;
+		foreach($this->fields as $key => $val){
+			if($key == $name)return $val;
 		}
 		return false;
 	}
@@ -193,12 +208,10 @@ class mysqlCO
 	 */
 	public function __set(string $name, $value = null)
 	{
-		foreach($this->fields as $row){
-			$field = $row['Field'];
-			if($field == $name)return $this->$field = $value;
+		foreach($this->fields as $key => &$val){
+			if($key == $name)return $val = $value;
 		}
 		trigger_error("在数据表 {$this->dbname}.{$this->table} 中没有字段 {$name}", E_USER_WARNING);
-		return false;
 	}
 
 	/**
@@ -233,7 +246,7 @@ class mysqlCO
      * @param $table
      * @return array 输出的标准条件字符串
      */
-	private function _where($where, $tablename)
+	private function _where(array $where, string $tablename)
     {
         $arr = [];
         foreach($where as $key => $val){
@@ -320,9 +333,13 @@ class mysqlCO
 	 */
 	public function field($field, string $table = null)
 	{
-		if(empty($field) || $field === '*')return;
+        $tablename = $table?:($this->asWord?:'`'.$this->table.'`');
+		if(empty($field) || $field === '*'){
+            $this->field[] = "{$tablename}.*";
+		    return;
+        }
 		if(!is_array($field))$field = explode(',', $field);
-		$tablename = $table?:($this->asWord?:'`'.$this->table.'`');
+
 		foreach($field as $key => $val){
 			if(is_string($key)){
 				$fieldname = $key;
@@ -333,11 +350,19 @@ class mysqlCO
 				$key = "{$tablename}.`{$fieldname}`";
 			}else{
 				$val = $val==$fieldname ? null : $val;
-				$fieldname = trim($fieldname);
-				$pos = strpos($fieldname, '(') + 1;
-				$fn = substr($fieldname, 0, $pos - 1);
-				$fieldname = substr($fieldname, $pos, strpos($fieldname, ')') - $pos);
-				$key = "{$fn}({$tablename}.`{$fieldname}`)";
+				$fieldname = str_replace('"', "'", trim($fieldname));
+				if(!preg_match('/^(\w+)\((.*?)\)$/', $fieldname, $arr))continue;
+				$fn = $arr[1];
+				$params = explode(',', $arr[2]);
+				foreach($params as &$param){
+                    $param = trim($param);
+                    if(preg_match('/^\w+$/', $param)){
+                        $param = "{$tablename}.`{$param}`";
+                    }elseif(preg_match('/^`\w+`$/', $param)){
+                        $param = "{$tablename}.{$param}";
+                    }
+                }
+				$key = "{$fn}(". join(',', $params) .")";
 			}
 			$this->field[$val] = $key;
 		}
@@ -595,11 +620,10 @@ class mysqlCO
 	public function insert(array $datas = [], bool $return = false)
 	{
 		$_datas = [];
-		foreach($this->fields as $row){
-			$field = $row['Field'];
-			if(isset($this->$field)){
-				$_datas[$field] = $this->$field;
-				unset($this->$field);
+		foreach($this->fields as $key => $val){
+			if($val !== null){
+				$_datas[$key] = $val;
+                $this->fields[$key] = null;
 			}
 		}
 
@@ -630,11 +654,10 @@ class mysqlCO
 	public function insertAll(array $dataAll)
 	{
 		$_datas = $arrKey = $arrVal = [];
-		foreach($this->fields as $row){
-			$field = $row['Field'];
-			if(isset($this->$field)){
-				$_datas[$field] = $this->$field;
-				unset($this->$field);
+		foreach($this->fields as $key => $val){
+			if($val !== null){
+				$_datas[$key] = $val;
+                $this->fields[$key] = null;
 			}
 		}
 
@@ -694,11 +717,10 @@ class mysqlCO
 	public function update(array $datas = [])
 	{
 		$_datas = [];
-		foreach($this->fields as $row){
-			$field = $row['Field'];
-			if(isset($this->$field)){
-				$_datas[$field] = $this->$field;
-				unset($this->$field);
+		foreach($this->fields as $key => $val){
+			if($val !== null){
+				$_datas[$key] = $val;
+                $this->fields[$key] = null;
 			}
 		}
 		//字段过滤
@@ -771,10 +793,7 @@ class mysqlCO
 	 */
 	private function _filter(&$datas)
 	{
-		$fields = [];
-		foreach($this->fields as $row){
-			$fields[] = $row['Field'];
-		}
+		$fields = array_keys($this->fields);
 		if(is_array($datas)){
 			$newDatas = [];
 			foreach($datas as $key => $data){

@@ -134,7 +134,7 @@ Class Table
         if(isset(self::$table[$tablename])){
             $this->tablename = $tablename;
             $this->_table = self::$table[$tablename];
-            $expire = Conf::mtable($tablename, '.__expire');
+            $expire = Conf::mtable($tablename, '__expire');
             if(is_numeric($expire))$this->expire = $expire;
         }else{
             trigger_error($tablename . '内存表不存在!', E_USER_WARNING);
@@ -305,30 +305,5 @@ Class Table
             }
         }
         return true;
-    }
-
-    /**
-     * 内存表加行锁
-     * @param string $key
-     */
-    Public function lock(string $key){
-        lock($this->tablename . '_' . $key);
-    }
-
-    /**
-     * 内存表加行锁，非阻塞
-     * @param string $key
-     * @return bool 是否抢锁成功
-     */
-    Public function trylock(string $key){
-        return lock($this->tablename . '_' . $key, 1);
-    }
-
-    /**
-     * 解锁
-     * @param string $key
-     */
-    Public function unlock(string $key){
-        unlock($this->tablename . '_' . $key);
     }
 }

@@ -89,7 +89,10 @@ Class Sub
         }else{
             ob_start();
             $_data = $data['data'];
-            if(isset($_data['__clsname']) && isset($_data['__actname'])){
+            if(isset($_data['act']) && in_array($_data['act'], ['getGlobals','setGlobals','delGlobals'])){
+                $actname = $_data['act'];
+                $content = self::$actname($_data['data']);
+            }elseif(isset($_data['__clsname']) && isset($_data['__actname'])){
                 if(get_class(Root::$worker) == trim($_data['__clsname'], '\\')){
                     if(method_exists(Root::$worker, $_data['__actname'])){
                         $content = call_user_func_array([Root::$worker, $_data['__actname']], $_data['__params']);
@@ -191,12 +194,54 @@ Class Sub
     }
 
     /**
-     * 解锁/唤醒协程
-     * @param int $cid 被挂起的协程ID
+     * 获取全局数据
+     * @param null $keys
+     * @return array|mixed
      */
-    Static Public function unlock(int $cid)
+    static private function getGlobals($keys = null)
     {
-        if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
+        $res = $GLOBALS;
+        $_res = [];
+        if(is_string($keys) && isset($res[$keys]))$_res = $res[$keys];
+        elseif(is_array($keys)){
+            foreach($keys as $key){
+                if(isset($res[$key]))
+                    $res = $res[$key];
+                else break;
+            }
+            if($res != $GLOBALS)$_res = $res;
+        }
+        return $_res;
+    }
+
+    /**
+     * 设置对应进程的全局数据
+     * @param array $data
+     */
+    static private function setGlobals(array $data)
+    {
+        foreach($data as $key => $_data){
+            foreach($_data as $_key => $val){
+                $GLOBALS['__customize'][$key][$_key] = $val;
+            }
+        }
+    }
+
+    /**
+     * 删除全局数据
+     * @param array $data
+     */
+    static private function delGlobals(array $keys)
+    {
+        if(empty($keys))$GLOBALS['__customize'] = [];
+        else {
+            $data = &$GLOBALS['__customize'];
+            foreach($keys as $key){
+                if(isset($data[$key]))$data = &$data[$key];
+                else return false;
+            }
+            unset($data);
+        }
     }
 
     private $process_name = null;

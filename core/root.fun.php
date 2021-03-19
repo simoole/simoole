@@ -598,6 +598,20 @@ function Q(string $name)
 }
 
 /**
+ * 获取全局数据实例
+ * @param string $name 数据KEY
+ * @return \Core\Util\Globals
+ */
+function G(string $name, int $worker_id = null)
+{
+    static $instances = [];
+    if(!isset($instances[$name])){
+        $instances[$name] = new \Core\Util\Globals($name, $worker_id);
+    }
+    return $instances[$name];
+}
+
+/**
  * 获取毫秒时间戳
  * @return int 返回的时间戳
  */

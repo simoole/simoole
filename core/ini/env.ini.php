@@ -4,8 +4,9 @@
  */
 
 //CLI命令
-if(isset($argv[1]) && in_array($argv[1], ['start', 'restart', 'status', 'stop', 'reload']))define('CLI_COMMAND', $argv[1]);
-else define('CLI_COMMAND', 'start');
+if(isset($argv[1]) && in_array($argv[1], ['help', 'start', 'restart', 'stop', 'reload', 'cleanup']))define('CLI_COMMAND', $argv[1]);
+elseif(isset($argv[0]) && in_array($argv[0], ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup']))define('CLI_COMMAND', $argv[0]);
+else define('CLI_COMMAND', 'help');
 //配置文件后缀
 define('INI_EXT', '.ini.php');
 //类库文件后缀

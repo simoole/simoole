@@ -37,6 +37,22 @@ Class Root
     }
 
     /**
+     * 命令列表
+     */
+    Static Public function help()
+    {
+        echo <<<HELP
+          命令列表：
+            1. start - 启动框架
+            2. reload - 热更新（只会启动工作进程和自定义子进程，并重载app文件夹中的类库）
+            3. restart - 重启框架
+            4. stop - 结束框架
+            5. cleanup - 清空table内存表
+
+        HELP;
+    }
+
+    /**
      * 启动框架
      */
     Static Private function start()
@@ -167,6 +183,19 @@ Class Root
                 if(\Swoole\Process::kill($_pid, 0))\Swoole\Process::kill($_pid, SIGTERM);
             }
             die("Reload signal has been issued!" . PHP_EOL);
+        }
+        die("Framework not started!" . PHP_EOL);
+    }
+
+    /**
+     * 清空table表
+     */
+    Static Public function cleanup()
+    {
+        $pid = @file_get_contents(TMP_PATH . 'child_0.pid');
+        if($pid && \Swoole\Process::kill($pid, 0)){
+            \Swoole\Process::kill($pid, SIGUSR2);
+            die("Cleanup signal has been issued!" . PHP_EOL);
         }
         die("Framework not started!" . PHP_EOL);
     }

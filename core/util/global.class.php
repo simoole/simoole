@@ -45,7 +45,7 @@ class Globals
 
     /**
      * 获取全局数据
-     * @param string|null $key
+     * @param string|null $key 要获取的数据变量名
      * @return bool|mixed|null
      */
     public function get(string $key = null)
@@ -72,8 +72,8 @@ class Globals
 
     /**
      * 设置全局数据
-     * @param string $name
-     * @param null $value
+     * @param string $name 变量名
+     * @param null $value 变量数据内容
      */
     public function set(string $name, $value = null) : void
     {

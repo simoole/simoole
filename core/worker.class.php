@@ -144,14 +144,10 @@ Class Worker
     }
 
     /**
-     * 解锁/唤醒协程
-     * @param int $cid 被挂起的协程ID
+     * 获取全局数据
+     * @param null $keys
+     * @return array|mixed
      */
-    Public function unlock(int $cid)
-    {
-        if(\Swoole\Coroutine::exists($cid))\Swoole\Coroutine::resume($cid);
-    }
-
     Public function getGlobals($keys = null)
     {
         $res = $GLOBALS;
@@ -169,13 +165,32 @@ Class Worker
     }
 
     /**
-     * 设置对应进程的公共变量
+     * 设置对应进程的全局数据
      * @param array $data
      */
     Public function setGlobals(array $data)
     {
-        foreach ($data as $key => $val){
-            $GLOBALS[$key] = $val;
+        foreach($data as $key => $_data){
+            foreach($_data as $_key => $val){
+                $GLOBALS['__customize'][$key][$_key] = $val;
+            }
+        }
+    }
+
+    /**
+     * 删除全局数据
+     * @param array $data
+     */
+    Public function delGlobals(array $keys)
+    {
+        if(empty($keys))$GLOBALS['__customize'] = [];
+        else {
+            $data = &$GLOBALS['__customize'];
+            foreach($keys as $key){
+                if(isset($data[$key]))$data = &$data[$key];
+                else return false;
+            }
+            unset($data);
         }
     }
 

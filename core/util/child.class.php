@@ -31,6 +31,22 @@ class ChildProc extends Proc
                 }
             }
         });
+
+        //注册清空内存表信号
+        \Swoole\Process::signal(SIGUSR2, function($signo) {
+            foreach(\Core\Table::$table as $name => $table){
+                T($name)->clear();
+            }
+            //清空全局内存
+            $sum = \Core\Conf::server('SWOOLE', 'worker_num') + count(\Core\Sub::$procs);
+            for($worker_id = 0; $worker_id < $sum; $worker_id ++){
+                if($worker_id == \Core\Root::$worker->id)continue;
+                \Core\Sub::send([
+                    'act' => 'delGlobals',
+                    'data' => []
+                ], $worker_id);
+            }
+        });
     }
 
     public function onMessage($data, int $worker_id)

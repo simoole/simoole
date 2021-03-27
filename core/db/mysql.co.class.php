@@ -222,7 +222,7 @@ class mysqlCO
 		//组装where
 		if(is_array($where)){
             $tablename = $table?:($this->asWord?:'`'.$this->table.'`');
-            $linkStr = $where[array_key_last($where)];
+            $linkStr = strtolower($where[array_key_last($where)]);
             if(in_array($linkStr, ['or','and'])){
                 array_pop($where);
                 $_arr = [];
@@ -230,7 +230,7 @@ class mysqlCO
                     if(is_string($key))$row = [$key => $row];
                     $_arr = array_merge($_arr, $this->_where($row, $tablename));
                 }
-                $arr[] = '(' . join(' or ', $_arr) . ')';
+                $arr[] = '(' . join(" {$linkStr} ", $_arr) . ')';
             }else{
                 $arr = $this->_where($where, $tablename);
             }
@@ -267,9 +267,10 @@ class mysqlCO
                     $arr[] = "({$tablename}.`{$key}` {$val[0]} '{$val[1]}')";
                 else{
                     $char = ' and ';
-                    if(in_array(strtolower($val[count($val)-1]), ['and', 'or'])){
-                        $char = " {$val[count($val)-1]} ";
-                        unset($val[count($val)-1]);
+                    $lastVal = strtolower($val[array_key_last($val)]);
+                    if(in_array($lastVal, ['and', 'or'])){
+                        $char = " {$lastVal} ";
+                        array_pop($val);
                     }
                     $_arr = [];
                     foreach($val as $v){

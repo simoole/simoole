@@ -220,22 +220,24 @@ class mysqlCO
 	public function where($where, string $table = null)
 	{
 		//组装where
+        if(empty($where))return;
 		if(is_array($where)){
             $tablename = $table?:($this->asWord?:'`'.$this->table.'`');
-            $linkStr = strtolower($where[array_key_last($where)]);
-            if(in_array($linkStr, ['or','and'])){
+            $linkStr = $where[array_key_last($where)];
+            if(is_string($linkStr) && in_array(strtolower($linkStr), ['or','and'])){
                 array_pop($where);
                 $_arr = [];
                 foreach($where as $key => $row){
                     if(is_string($key))$row = [$key => $row];
                     $_arr = array_merge($_arr, $this->_where($row, $tablename));
                 }
+                $linkStr = strtolower($linkStr);
                 $arr[] = '(' . join(" {$linkStr} ", $_arr) . ')';
             }else{
                 $arr = $this->_where($where, $tablename);
             }
 			$this->where = empty($this->where) ? $arr : array_merge($this->where, $arr);
-		}elseif(!empty($where)){
+		}else{
 			$this->where[] = "($where)";
 		}
 	}

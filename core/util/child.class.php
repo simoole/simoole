@@ -69,7 +69,7 @@ class ChildProc extends Proc
                 return count($this->queueData[$data['name']]);
 
             case MEMORY_TABLE_SET:
-                $this->mtable[$data['name'] . '^_^' . $data['key']] = time() + C('MEMORY_TABLE.' . $data['name'] . '.__expire');
+                $this->mtable[$data['name'] . '^_^' . $data['key']] = time() + \Core\Conf::mtable($data['name'], '__expire');
                 break;
 
             case MEMORY_WEBSOCKET_GET:

@@ -154,26 +154,13 @@ class mysqlCO
 		$this->_table = $table;
 		if(preg_match('/^[a-zA-Z]+\w*$/', $asWord))$this->asWord = $asWord;
         if(!$tableFields = $this->_tableAnalyse($this->table))return false;
-//		if(!isset($tableField[$this->dbname . '.' . $this->table])){
-//            $rs = $this->query("SHOW COLUMNS FROM `{$this->table}`");
-//            if(!$rs){
-//                trigger_error('数据表['. $this->dbname . '.' . $this->table .']不存在！', E_USER_WARNING);
-//                return false;
-//            }
-//            $tableField[$this->dbname . '.' . $this->table] = [];
-//            while($row = $rs->fetch()) {
-//                $this->fields[$row['Field']] = null;
-//                $tableField[$this->dbname . '.' . $this->table][] = $row;
-//            }
-//        }else{
-		    foreach($tableFields as $row){
-                $this->fields[$row['Field']] = null;
-            }
-//        }
+        foreach($tableFields as $row){
+            $this->fields[$row['Field']] = null;
+        }
 		return true;
 	}
 
-	private function _tableAnalyse(string $table): array
+	private function _tableAnalyse(string $table)
     {
         $datatable = $this->dbname . '.' . $table;
         if($data = G('database_' . $this->dbname)->$table){

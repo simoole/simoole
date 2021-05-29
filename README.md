@@ -1,12 +1,13 @@
-# Simple-Swoole-Framework
+# Simoole
+### simoole.com
 基于swoole引擎的多进程&协程&常驻内存式PHP框架，结构清晰，部署简单，使用方便。可以灵活应对HTTP/Websocket服务，内置子进程通信，可以灵活处理各类复杂业务。
 
 -----------
 ## 简单部署
-<pre><code>git clone https://github.com/ljj7410/Simple-Swoole-Framework.git
-cd Simple-Swoole-Framework
-docker build -t ssf .
-docker run --name myssf -p 9200:9200 -d ssf</code></pre>
+<pre><code>git clone https://github.com/ljj7410/Simoole.git
+cd Simoole
+docker build -t simoole .
+docker run --name project -p 9200:9200 -d simoole</code></pre>
 ### 即刻访问
 <pre><code>curl http://127.0.0.1:9200</code></pre>
 ## CLI命令
@@ -49,12 +50,12 @@ php index.php restart //重启实例</code></pre>
 > 邮箱：dean7410@163.com
 
 ### 声明
-SSF由作者独立研发，版权归属个人，与任何组织无关。未经作者授权，谢绝任何人或组织对本开源程序进行篡改转载。
+Simoole由作者独立研发，版权归属个人，与任何组织无关。未经作者授权，谢绝任何人或组织对本开源程序进行篡改转载。
 
 ----------
 ## 函数说明
 
-SSF为开发者提供了许多简单便捷的全局函数。开发者也可以自行添加自定义函数库，函数库文件需以[.fun.php]结尾命名，系统则会自动检测并加载函数库中函数到常驻内存中，如tool.fun.php。
+Simoole为开发者提供了许多简单便捷的全局函数。开发者也可以自行添加自定义函数库，函数库文件需以[.fun.php]结尾命名，系统则会自动检测并加载函数库中函数到常驻内存中，如tool.fun.php。
 - 如果配置了 MAP_TYPE 为 2，系统是不会自动加载该函数库文件的，需手动配置待加载项。
 
 ### 1. M(string $tableName, [string $dbConfName]) 数据模型函数
@@ -249,4 +250,5 @@ L($class, 'class', 'ext');
 ```
 
 -----------
-更多WIKI请跳转：https://github.com/ljj7410/Simple-Swoole-Framework/wiki
+更多WIKI请跳转：https://github.com/ljj7410/Simoole/wiki
+Simoole 官方网站 simoole.com

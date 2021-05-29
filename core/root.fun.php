@@ -398,34 +398,42 @@ function U(string $pname = null, $value = '[NULL]'){
 /**
  * 实例化类
  * @param string $name 要实例化的类（子进程名:类名）
- * @param bool $is_return 是否接收返回值（子进程通信时会产生协程切换）
+ * @param array $params 实例化参数
  * @return \Core\Sub|mixed|null
  */
-function make(string $name, bool $is_return = false)
+function make(string $name, array $params = [])
 {
-    static $processes = [];
-    if(strpos($name, ':')){
-        [$process_name, $class_name] = explode(':', $name);
-        if(!$conf = \Core\Conf::process($process_name)){
-            $process_name = null;
-        }
-    }elseif($conf = \Core\Conf::process($name)){
-        $process_name = $name;
-        $class_name = $conf['class_name'] . 'Proc';
+    if(class_exists($name)){
+        $instance = (new ReflectionClass($name))->newInstanceArgs($params);
     }else{
-        $class_name = $name;
-        $process_name = null;
-    }
-    if(!class_exists($class_name))return null;
-    if(!isset($processes[$name])){
-        if($process_name){
-            $processes[$name] = new \Core\Sub($process_name, $class_name);
+        if($conf = \Core\Conf::process($name)){
+            return new class($name, $conf['class_name']){
+
+                private $process_name = null;
+                private $class_name = null;
+
+                public function __construct($name, $class_name)
+                {
+                    $this->process_name = $name;
+                    $this->class_name = $class_name;
+                }
+
+                public function __call($name, $params = [])
+                {
+                    //判断该方法是否有返回值
+                    $is_return = (new ReflectionClass($this->class_name . 'Proc'))->getMethod($name)->hasReturnType();
+                    return \Core\Sub::send([
+                        '__actname' => $name,
+                        '__params' => $params
+                    ], $this->process_name, $is_return);
+                }
+            };
         }else{
-            $processes[$name] = new $class_name;
+            trigger_error("[{$name}]子进程不存在");
+            return nulll;
         }
     }
-    if($process_name)$processes[$name]->is_return = $is_return;
-    return $processes[$name];
+    return $instance;
 }
 
 /**

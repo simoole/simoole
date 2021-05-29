@@ -246,11 +246,12 @@ Class Model {
     /**
      * 多条插入记录
      * @param array $dataAll 要插入的数据数组
+     * @param bool $is_return 是否返回插入后的数据，默认只返回插入的数量
      * @return array
      */
-    public function insertAll(array $dataAll)
+    public function insertAll(array $dataAll, bool $is_return = false)
     {
-        $rs = $this->db->insertAll($dataAll);
+        $rs = $this->db->insertAll($dataAll, $is_return);
         return $rs;
     }
 
@@ -386,6 +387,7 @@ Class Model {
      */
     Public function query(string $sql)
     {
+        $sql = str_replace('__PREFIX__', $this->config['PREFIX'], $sql);
         $rs = $this->db->query($sql);
         if(!$rs)return false;
         return $rs->fetchall();
@@ -398,6 +400,7 @@ Class Model {
      */
     Public function execute(string $sql)
     {
+        $sql = str_replace('__PREFIX__', $this->config['PREFIX'], $sql);
         return $this->db->execute($sql);
     }
 

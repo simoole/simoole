@@ -412,6 +412,8 @@ class mysqlCO
 			}
 			$onWhere[] = "({$a}.`{$c}` {$e} {$b}.`{$d}`)";
 		}
+        $type = strtolower($type);
+		if(!in_array($type, ['left','right']))$type = 'inner';
 		$this->join[] = "{$type} join `{$table}` {$word} on " . join(' and ', $onWhere);
 	}
 
@@ -477,7 +479,7 @@ class mysqlCO
 	{
 		//组装SQL语句用于日志输出
 		$_sql = $sql;
-        foreach($this->params as $i => $val){
+        foreach($this->params as $val){
             if(strlen($val) > 200)$val = preg_replace('/\s/m', ' ', substr($val, 0, 200) . '...');
             $_sql = preg_replace('/\?/', "'".$val."'", $_sql, 1);
         }
@@ -515,7 +517,7 @@ class mysqlCO
 	public function execute(string $sql, int &$insert_id = null)
 	{
 		$_sql = $sql;
-		foreach($this->params as $i => $val){
+		foreach($this->params as $val){
 			if(strlen($val) > 200)$val = preg_replace('/\s/m', ' ', substr($val, 0, 200) . '...');
 			$_sql = preg_replace('/\?/', "'".$val."'", $_sql, 1);
 		}
@@ -538,7 +540,7 @@ class mysqlCO
 		$this->params = [];
 		if(U())U()->log('EXECUTE: '. $_sql);
         else{
-            $msg = 'QUERY: '. $_sql;
+            $msg = 'EXECUTE: '. $_sql;
             $time = round(microtime(true) * 10000);
             $msg .= ' [RunTime: '. ($time - $this->runtime)/10000 .'s]' . PHP_EOL;
             $this->runlogs .= $msg;
@@ -638,66 +640,59 @@ class mysqlCO
 		}
 	}
 
-	/**
-	 * 多条插入记录
-	 */
-	public function insertAll(array $dataAll)
-	{
-		$_datas = $arrKey = $arrVal = [];
-		foreach($this->fields as $key => $val){
-			if($val !== null){
-				$_datas[$key] = $val;
+    /**
+     * 批量插入记录
+     * @param array $dataAll 要插入的数据
+     * @param bool $is_return 是否返回成功插入的数据，默认只返回插入条数
+     * @return false|int
+     */
+    public function insertAll(array $data_all, bool $is_return = false)
+    {
+        $_datas = $arrKey = $arrVal = [];
+        foreach($this->fields as $key => $val){
+            if($val !== null){
+                $_datas[$key] = $val;
                 $this->fields[$key] = null;
-			}
-		}
-
-		//组装数据
-		foreach($dataAll as $datas){
-			$this->_filter($datas);
-			$datas = array_merge($_datas, $datas);
-			$arr = array_keys($datas);
-			if(empty($arrKey))$arrKey = $arr;
-			if($arrKey != $arr)continue;
-			$arrVal[] = array_values($datas);
-		}
-
-		//记录回滚事件
-        $this->link->begin();
-		//组装SQL语句
-		$this->sql = "Insert into `{$this->table}` {$this->asWord} (`". join('`, `', $arr) ."`) values (". join(", ", array_fill(0, count($arr), '?')) .");";
-
-		if(!$rs = $this->link->prepare($this->sql)){
-            $this->link->rollBack();
-            trigger_error('INSERTALL语句出错！原因:['. $this->link->errno .']'. $this->link->error . ' SQL语句：' . $this->sql, E_USER_WARNING);
-            return false;
+            }
         }
 
-        foreach($arrVal as $arr){
-            $sql = $this->sql;
-            foreach($arr as $i => $val){
-                if(strlen($val) > 200)$val = preg_replace('/\s/m', ' ', substr($val, 0, 200) . '...');
-                $sql = preg_replace('/\?/', "'".$val."'", $sql, 1);
-            }
-            if(U())U()->log('EXECUTE: '. $sql);
-            else{
-                $msg = 'QUERY: '. $sql;
-                $time = round(microtime(true) * 10000);
-                $msg .= ' [RunTime: '. ($time - $this->runtime)/10000 .'s]' . PHP_EOL;
-                $this->runlogs .= $msg;
-                $this->runtime = $time;
-            }
+        //组装数据
+        $_data_all = [];
+        foreach($data_all as $datas){
+            $this->_filter($datas);
+            $datas = array_merge($_datas, $datas);
+            $keys = array_keys($datas);
+            if(empty($arrKey))$arrKey = $keys;
+            if($arrKey != $keys)continue;
+            $arrVal[] = array_values($datas);
+            $_data_all[] = $datas;
+        }
+        $total = count($arrVal);
 
-            //执行
-            if (!$rs->execute($arr)) {
-                $this->link->rollBack();
-                trigger_error('INSERTALL语句出错！原因:['. $this->link->errno .']'. $this->link->error . ' SQL语句：' . $sql, E_USER_WARNING);
-                return false;
+        $this->sql = "Insert into `{$this->table}` (`". join('`, `', $keys) ."`) values ";
+        $sql_arr = $val_arr = [];
+        foreach($arrVal as $vals){
+            $sql_arr[] = "(". join(", ", array_fill(0, count($keys), '?')) .")";
+            $val_arr = array_merge($val_arr, $vals);
+        }
+        $this->sql .= join(',', $sql_arr) . ';';
+        $this->params = $val_arr;
+
+        $insert_id = 0;
+        //执行
+        $rs = $this->execute($this->sql, $insert_id);
+        if(!$rs)return false;
+        if($is_return){
+            $first_id = $insert_id;
+            $datas = [];
+            foreach($_data_all as $row){
+                $datas[] = array_merge(['id' => $first_id ++], $row);
             }
         }
         $this->link->commit();
         $this->_reset();
-        return count($arrVal);
-	}
+        return $is_return ? $datas : $total;
+    }
 
 	/**
 	 * 更新数据

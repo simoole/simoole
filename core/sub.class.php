@@ -89,23 +89,26 @@ Class Sub
         }else{
             ob_start();
             $_data = $data['data'];
-            if(isset($_data['act']) && in_array($_data['act'], ['getGlobals','setGlobals','delGlobals'])){
+            $content = '';
+            if(isset($_data['act']) && in_array($_data['act'], ['getGlobals','setGlobals','delGlobals'])) {
                 $actname = $_data['act'];
                 $content = self::$actname($_data['data']);
-            }elseif(isset($_data['__clsname']) && isset($_data['__actname'])){
-                if(get_class(Root::$worker) == trim($_data['__clsname'], '\\')){
-                    if(method_exists(Root::$worker, $_data['__actname'])){
-                        $content = call_user_func_array([Root::$worker, $_data['__actname']], $_data['__params']);
-                    }
-                }else{
-                    $class_name = $_data['__clsname'];
-                    if(!isset(self::$classes[$class_name])){
-                        self::$classes[$class_name] = new $class_name();
-                    }
-                    if(method_exists(self::$classes[$class_name], $_data['__actname'])){
-                        $content = call_user_func_array([self::$classes[$class_name], $_data['__actname']], $_data['__params']);
-                    }
+            }elseif(isset($_data['__classid'])) {
+                //承接make异步实例化子进程
+                $class_id = $_data['__classid'];
+                if(isset($_data['__string'])){
+                    //反序列化中间键得到对象
+                    self::$classes[$class_id] = unserialize($_data['__string']);
+                }elseif(isset($_data['__actname']) && method_exists(self::$classes[$class_id], $_data['__actname'])){
+                    //执行指定对象
+                    $content = call_user_func_array([self::$classes[$class_id], $_data['__actname']], $_data['__params']);
+                }elseif(!isset($_data['__actname'])){
+                    //回收对象
+                    unset(self::$classes[$class_id]);
                 }
+            }elseif(isset($_data['__actname']) && method_exists(Root::$worker, $_data['__actname'])){
+                //执行子进程类
+                $content = call_user_func_array([Root::$worker, $_data['__actname']], $_data['__params']??[]);
             }else{
                 $content = Root::$worker->onMessage($_data, $data['worker_id']);
             }
@@ -244,21 +247,4 @@ Class Sub
         }
     }
 
-    private $process_name = null;
-    private $class_name = null;
-    public $is_return = false;
-    public function __construct(string $process_name, string $class_name = null)
-    {
-        $this->process_name = $process_name;
-        $this->class_name = $class_name;
-    }
-
-    public function __call($name, $params = [])
-    {
-        return self::send([
-            '__clsname' => $this->class_name,
-            '__actname' => $name,
-            '__params' => $params
-        ], $this->process_name, $this->is_return);
-    }
 }

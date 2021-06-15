@@ -127,18 +127,15 @@ class Http
         ob_start();
         //实例化控制器
         $ob = new $class_name;
-        U()->log('INFO: Controller instance completed');
-        //优先执行_start()方法
-        if($rs = $ob->_start() !== false){
-            U()->log('INFO: _start() execution completed');
-            //执行指定方法
-            $content = $ob->$action_name();
-            U()->log('INFO: Action execution completed');
-            //执行结束方法
-            $ob->_end();
-            U()->log('INFO: _end() execution completed');
+
+        if(Conf::server('APP','auto_try')){
+            try{
+                $content = self::exec($ob, $action_name);
+            }catch(\Exception $e){
+                $ob->error($e->getMessage(), $e->getCode());
+            }
         }else{
-            U()->log('INFO: _start() execution finish');
+            $content = self::exec($ob, $action_name);
         }
 
         //获取缓冲池的输出内容
@@ -149,5 +146,23 @@ class Http
 
         //最终输出
         $response->end($content);
+    }
+
+    Static Private function exec(object $ob, string $action_name)
+    {
+        U()->log('INFO: Controller instance completed');
+        //优先执行_start()方法
+        if($ob->_start() !== false){
+            U()->log('INFO: _start() execution completed');
+            //执行指定方法
+            $content = $ob->$action_name();
+            U()->log('INFO: Action execution completed');
+            //执行结束方法
+            $ob->_end();
+            U()->log('INFO: _end() execution completed');
+        }else{
+            U()->log('INFO: _start() execution finish');
+        }
+        return $content ?? null;
     }
 }

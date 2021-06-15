@@ -15,9 +15,21 @@ class Conf
                 $config[$name] = Root::loadFiles(CORE_PATH . 'ini/' . $name . INI_EXT, true);
             if(in_array($name, ['server','database','map','mtable','process','redis']))
                 $_config = Root::loadFiles(__ROOT__ . 'config/system/' . $name . INI_EXT, true);
-            elseif($name == 'route')
+            elseif($name == 'route'){
                 $_config = Root::loadFiles(__ROOT__ . 'config/' . $name . INI_EXT, true);
-            else{
+                if(is_dir(__ROOT__ . 'config/' . $name)){
+                    $files = glob(__ROOT__ . 'config/' . $name . '/*' . INI_EXT);
+                    foreach($files as $file){
+                        $arr = Root::loadFiles($file, true);
+                        if(is_array($arr[array_key_first($arr)]))
+                            $_config = array_mer($_config, Root::loadFiles($file, true));
+                        else {
+                            $filename = substr($file, strrpos($file, '/') + 1, strlen(INI_EXT) * -1);
+                            $_config[$filename] = Root::loadFiles($file, true);
+                        }
+                    }
+                }
+            }else{
                 trigger_error('系统配置['. $name .'.ini.php]没有找到');
                 return null;
             }

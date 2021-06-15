@@ -21,28 +21,24 @@ class Websocket
         return true;
     }
 
+    Public function _before_message($data)
+    {
+        return true;
+    }
+
+    Public function _before_close()
+    {
+        return true;
+    }
+
     Public function _open()
     {
         return false;
     }
 
-    Public function _before_message($data, $fd)
-    {
-        return true;
-    }
+    Public function _message($data){}
 
-    Public function _message($data)
-    {
-    }
-
-    Public function _close()
-    {
-    }
-
-    Public function _before_end()
-    {
-        return true;
-    }
+    Public function _close(){}
 
     Public function _end()
     {

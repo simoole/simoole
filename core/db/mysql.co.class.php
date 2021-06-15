@@ -712,19 +712,31 @@ class mysqlCO
 		$this->_filter($datas);
 		$datas = array_merge($_datas, $datas);
 		//组装数据
-		$arr = $params = [];
+		$arr = [];
 		foreach($datas as $key => $val){
-			if(is_array($val)){
-				list($k, $v) = $val;
-				switch(strtolower($k)){
-					case '+':
-					case 'inc':$arr[] = "`{$key}`=`{$key}`+{$v}";break;
-					case '-':
-					case 'dec':$arr[] = "`{$key}`=`{$key}`-{$v}";break;
-					case '*':$arr[] = "`{$key}`=`{$key}`*{$v}";break;
-					case '/':$arr[] = "`{$key}`=`{$key}`/{$v}";break;
-					case 'exp':$arr[] = "`{$key}`={$v}";break;
-				}
+			if(is_array($val)) {
+                list($k, $v) = $val;
+                switch (strtolower($k)) {
+                    case '+':
+                    case 'inc':
+                        $arr[] = "`{$key}`=`{$key}`+{$v}";
+                        break;
+                    case '-':
+                    case 'dec':
+                        $arr[] = "`{$key}`=`{$key}`-{$v}";
+                        break;
+                    case '*':
+                        $arr[] = "`{$key}`=`{$key}`*{$v}";
+                        break;
+                    case '/':
+                        $arr[] = "`{$key}`=`{$key}`/{$v}";
+                        break;
+                    case 'exp':
+                        $arr[] = "`{$key}`={$v}";
+                        break;
+                }
+            }elseif ($val === null){
+                $arr[] = "`{$key}`=null";
 			}else{
                 $val = addslashes($val);
 				$arr[] = "`{$key}`='{$val}'";

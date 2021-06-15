@@ -6,29 +6,6 @@
  */
 
 return [
-    'APP' => [
-        'before_start' => null, //实例start前执行的函数名(不可进行数据库操作)
-        'after_start' => null, //实例start后执行的函数名(不可进行数据库操作)
-        'worker_start' => null, //工作进程start后执行的函数名
-        'after_stop' => null //实例stop后执行的函数名(不可进行数据库操作)
-    ],
-    'SESSION' => [
-        'AUTO_START' => true,
-        'DOMAIN' => '',
-        'PATH' => '/',
-        'EXPIRE' => 180 * 60, //session到期时间单位(秒)
-        'CLEANUP' => 60, //session过期清理频率(秒)
-        'DRIVE' => 'TABLE' //session驱动 TABLE-内存表、REDIS-redis驱动
-    ],
-    'LOG' => [
-        'split' => 'd', //按多长时间来分割 i-分钟 h-小时 d-天 w-周 m-月 留空则不分割
-        'keep' => 7, //保留最近的7份日志,多余的自动删除,0则表示不删除
-        'errorfile' => 'xml', //异常日志输出形式, xml或json
-        'errortype' => [E_ERROR,E_WARNING,E_PARSE,E_NOTICE,E_CORE_ERROR,E_CORE_WARNING,E_COMPILE_ERROR,E_COMPILE_WARNING,E_USER_ERROR,E_USER_WARNING,E_USER_NOTICE,E_STRICT,E_RECOVERABLE_ERROR]
-    ],
-    'TIMEZONE' => 'Asia/Shanghai',
-    //加密字典
-    'KEYT' => 'sXODQpGzexIwo8gJqdEj94ZFPc2KNUC3kBaTmMSL07r6u15yYnHifVlWbtvhAR',
     'TCP' => [
         'host' => '0.0.0.0',
         'port' => '9500',
@@ -53,5 +30,29 @@ return [
         'heartbeat_check_interval' => 60, //心跳检测频率,表示每60秒遍历一次
         'data_type' => 'string', //message接收到的数据类型 string|json
         'heartbeat' => 1 //心跳类型：1-自动PING(PONG)心跳 2-手动心跳 0-关闭心跳
-    ]
+    ],
+    'APP' => [
+        'auto_try' => false, //自动增加try..catch
+        'before_start' => null, //实例start前执行的函数名(不可进行数据库操作)
+        'after_start' => null, //实例start后执行的函数名(不可进行数据库操作)
+        'worker_start' => null, //工作进程start后执行的函数名
+        'after_stop' => null //实例stop后执行的函数名(不可进行数据库操作)
+    ],
+    'SESSION' => [
+        'AUTO_START' => true,
+        'DOMAIN' => '',
+        'PATH' => '/',
+        'EXPIRE' => 180 * 60, //session到期时间单位(秒)
+        'CLEANUP' => 60, //session过期清理频率(秒)
+        'DRIVE' => 'TABLE' //session驱动 TABLE-内存表、REDIS-redis驱动
+    ],
+    'LOG' => [
+        'split' => 'd', //按多长时间来分割 i-分钟 h-小时 d-天 w-周 m-月 留空则不分割
+        'keep' => 7, //保留最近的7份日志,多余的自动删除,0则表示不删除
+        'errorfile' => 'xml', //异常日志输出形式, xml或json
+        'errortype' => [E_ERROR,E_WARNING,E_PARSE,E_NOTICE,E_CORE_ERROR,E_CORE_WARNING,E_COMPILE_ERROR,E_COMPILE_WARNING,E_USER_ERROR,E_USER_WARNING,E_USER_NOTICE,E_STRICT,E_RECOVERABLE_ERROR]
+    ],
+    'TIMEZONE' => 'Asia/Shanghai',
+    //加密字典
+    'KEYT' => 'sXODQpGzexIwo8gJqdEj94ZFPc2KNUC3kBaTmMSL07r6u15yYnHifVlWbtvhAR'
 ];

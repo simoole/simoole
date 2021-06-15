@@ -41,14 +41,7 @@ abstract class Websocket
      */
     Static Public function open($request, &$response)
     {
-        if($request->header['upgrade'] != 'websocket')return;
-        $response->header('Server', 'SSF-websocket');
-        $response->header('Upgrade','websocket');
-        $response->header('Connection','Upgrade');
-        $websocketStr = $request->header['sec-websocket-key'].'258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-        $SecWebSocketAccept = base64_encode(sha1($websocketStr,true));
-        $response->header('Sec-WebSocket-Accept', $SecWebSocketAccept);
-        $response->header('Sec-WebSocket-Version','13');
+        if($request->header['upgrade'] != 'websocket')return false;
 
         //配置路由
         $data = [
@@ -71,7 +64,7 @@ abstract class Websocket
 
         if(empty($class_path)){
             trigger_error('路由['. ($data['server']['request_uri']??'/') .']匹配失败', E_USER_ERROR);
-            return;
+            return false;
         }
         $data['route_group'] = $group_name;
         $data['route_path'] = $route_path;
@@ -94,7 +87,7 @@ abstract class Websocket
         //实例化open对象
         $ob = new $class_name;
         U()->log('INFO: Websocket instance completed');
-        if($rs = $ob->_before_open() !== false){
+        if($ob->_before_open() !== false){
             U()->log('INFO: _start() execution completed');
             $rs = call_user_func_array([$ob, '_open'], $params);
             U()->log('INFO: _open() execution completed');
@@ -124,8 +117,17 @@ abstract class Websocket
             }
             Sub::send(['type' => MEMORY_WEBSOCKET_SET, 'fd' => $request->fd, 'data' => $data]);
             self::$fds[] = $request->fd;
+
+            $response->header('Server', 'SSF-websocket');
+            $response->header('Upgrade','websocket');
+            $response->header('Connection','Upgrade');
+            $websocketStr = $request->header['sec-websocket-key'].'258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+            $SecWebSocketAccept = base64_encode(sha1($websocketStr,true));
+            $response->header('Sec-WebSocket-Accept', $SecWebSocketAccept);
+            $response->header('Sec-WebSocket-Version','13');
             $response->status(101);
             $response->end();
+
             Root::$user[getcid()] = null;
             unset(Root::$user[getcid()]);
             return true;
@@ -196,16 +198,16 @@ abstract class Websocket
 
         ob_start();
         $ob = new $class_name;
-        U()->log('INFO: Websocket instance completed');
-        if($rs = $ob->_before_message($frame_data, $frame->fd) !== false){
-            U()->log('INFO: _start() execution completed');
-            $_data = $frame_data;
-            if(C('WEBSOCKET.data_type') == 'json'){
-                $_data = json_decode($frame_data, true);
-                if(json_last_error() !== JSON_ERROR_NONE){
-                    $_data = $frame_data;
-                }
+        $_data = $frame_data;
+        if(C('WEBSOCKET.data_type') == 'json'){
+            $_data = json_decode($frame_data, true);
+            if(json_last_error() !== JSON_ERROR_NONE){
+                $_data = $frame_data;
             }
+        }
+        U()->log('INFO: Websocket instance completed');
+        if($ob->_before_message($_data) !== false){
+            U()->log('INFO: _start() execution completed');
             $ob->_message($_data);
             U()->log('INFO: _message() execution completed');
             $ob->_end();
@@ -242,7 +244,7 @@ abstract class Websocket
 
         $ob = new $class_name;
         U()->log('INFO: Websocket instance completed');
-        if($rs = $ob->_before_end() !== false){
+        if($ob->_before_close() !== false){
             U()->log('INFO: _start() execution completed');
             $ob->_close();
             U()->log('INFO: _close() execution completed');

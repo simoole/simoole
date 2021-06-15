@@ -48,9 +48,9 @@ Class Model {
     /**
      * 选择数据表
      * @param string $table 数据表名
-     * @return \Core\Model
+     * @return $this
      */
-    public function table(string $table, string $asWord = '')
+    public function table(string $table, string $asWord = '') : ?self
     {
         if(strpos($table, ' ') !== false){
             $arr = explode(' ', $table);
@@ -65,7 +65,7 @@ Class Model {
         if($this->db->table($table, $asWord)){
             return $this;
         }else{
-            return false;
+            return null;
         }
     }
 
@@ -94,9 +94,9 @@ Class Model {
      * field 字段组装子句
      * @param mixed $field 字段或字段数组 ['字段', '字段' => '别名']
      * @param string $table 字段所在表名
-     * @return \Core\Model
+     * @return $this
      */
-    public function field($field, string $table = null)
+    public function field($field, string $table = null) : self
     {
         $this->db->field($field, $table);
         return $this;
@@ -105,9 +105,9 @@ Class Model {
     /**
      * 条件判断子句
      * @param mixed $condition 条件字符串或条件数组 ['字段' => ['比较符号', '值']]
-     * @return \Core\Model
+     * @return $this
      */
-    public function where($condition, string $table = null)
+    public function where($condition, string $table = null) : self
     {
         if(!empty($condition))$this->db->where($condition, $table);
         return $this;
@@ -117,9 +117,9 @@ Class Model {
      * 分组查询group子句
      * @param mixed $field 用于分组的一个字段
      * @param array $having 用于分组筛选的条件
-     * @return \Core\Model
+     * @return $this
      */
-    public function group($field, array $having = [])
+    public function group($field, array $having = []) : self
     {
         $this->db->group($field, $having);
         return $this;
@@ -130,9 +130,9 @@ Class Model {
      * @param string $table 被关联的表名
      * @param array $condition 关联条件 on ...
      * @param string $type 关联类型,默认内联
-     * @return \Core\Model
+     * @return $this
      */
-    public function join(string $table, array $condition = [], string $type = 'inner')
+    public function join(string $table, array $condition = [], string $type = 'inner') : self
     {
         $this->db->join($table, $condition, $type);
         return $this;
@@ -142,9 +142,9 @@ Class Model {
      * order by组装子句
      * @param $order 组装字段
      * @param string $asc 排序方式 asc-desc
-     * @return \Core\Model
+     * @return $this
      */
-    public function order(string $order, string $asc = '', string $table = null)
+    public function order(string $order, string $asc = '', string $table = null) : self
     {
         if(strpos($order, '.') !== false){
             $arr = explode('.', $order);
@@ -159,9 +159,9 @@ Class Model {
      * limit子句
      * @param mixed $limit 偏移开始位置
      * @param int $length 读取条数
-     * @return \Core\Model
+     * @return $this
      */
-    public function limit($limit, int $length = null)
+    public function limit($limit, int $length = null) : self
     {
         $this->db->limit($limit, $length);
         return $this;
@@ -387,7 +387,7 @@ Class Model {
      */
     Public function query(string $sql)
     {
-        $sql = str_replace('__PREFIX__', $this->config['PREFIX'], $sql);
+        $sql = str_replace(['__PREFIX__', '__DBNAME__'], [$this->config['PREFIX'], $this->dbname], $sql);
         $rs = $this->db->query($sql);
         if(!$rs)return false;
         return $rs->fetchall();
@@ -400,7 +400,7 @@ Class Model {
      */
     Public function execute(string $sql)
     {
-        $sql = str_replace('__PREFIX__', $this->config['PREFIX'], $sql);
+        $sql = str_replace(['__PREFIX__', '__DBNAME__'], [$this->config['PREFIX'], $this->dbname], $sql);
         return $this->db->execute($sql);
     }
 

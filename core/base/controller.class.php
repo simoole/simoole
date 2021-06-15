@@ -43,7 +43,7 @@ Class Controller
      * @param $msg 输出内容
      * @param int $code 状态码
      */
-    protected function success($data, int $code = 1)
+    public function success($data, int $code = 1)
     {
         return $this->jsonReturn([
             'status' => $code,
@@ -57,7 +57,7 @@ Class Controller
      * @param int $code 跳转地址或AJAX状态码
      * @param int $trigger_error ERROR错误码
      */
-    protected function error($data, int $code = 0, int $trigger_error = null)
+    public function error($data, int $code = 0, int $trigger_error = null)
     {
         if($trigger_error !== null){
             if(is_array($data) || is_object($data))$data = json_encode($data);

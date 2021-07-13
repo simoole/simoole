@@ -1,6 +1,9 @@
 # Simoole
 ### simoole.com
 基于swoole引擎的多进程&协程&常驻内存式PHP框架，结构清晰，部署简单，使用方便。可以灵活应对HTTP/Websocket服务，内置子进程通信，可以灵活处理各类复杂业务。
+- 目前主流的PHP框架都已经composer化，但作者坚持没有将Simoole框架composer化，目的是为了能保持本框架极简属性，以更好的适应docker部署和私有化部署等场景。 
+- 框架体积很小，常驻内存不必担心过多消耗。
+- 如果需要实时更新框架，可以使用<code>./simoole update:latest</code>命令。
 
 -----------
 ## 简单部署
@@ -11,10 +14,12 @@ docker run --name project -p 9200:9200 -d simoole</code></pre>
 ### 即刻访问
 <pre><code>curl http://127.0.0.1:9200</code></pre>
 ## CLI命令
-<pre><code>php index.php start //开启实例
-php index.php stop //关闭实例
-php index.php reload //热更新（重启worker进程，公共内存无影响）
-php index.php restart //重启实例</code></pre>
+<pre><code>./simoole start //开启实例
+./simoole stop //关闭实例
+./simoole reload //热更新（重启worker进程，公共内存无影响）
+./simoole restart //重启实例
+./simoole cleanup //清空内存表
+./simoole update:版本号 //更新框架，可以使用latest</code></pre>
 
 ----------
 ## 目录结构

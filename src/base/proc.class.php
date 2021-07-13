@@ -32,8 +32,8 @@ class Proc
 
     protected function setWorkerGlobals($data)
     {
-        for($i=0; $i<\Swoole\Root::$serv->setting['worker_num']; $i++){
-            \Swoole\Root::$serv->sendMessage(json_encode([
+        for($i=0; $i<\Simoole\Root::$serv->setting['worker_num']; $i++){
+            \Simoole\Root::$serv->sendMessage(json_encode([
                 'act' => 'setGlobals',
                 'data' => $data
             ]), $i);

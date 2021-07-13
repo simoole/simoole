@@ -4,7 +4,7 @@
  */
 
 namespace Simoole\Util;
-use Swoole\Base\Proc;
+use Simoole\Base\Proc;
 
 class ChildProc extends Proc
 {
@@ -20,7 +20,7 @@ class ChildProc extends Proc
             foreach ($this->mtable as $mkey => $exp){
                 if($exp < $time){
                     list($name, $key) = explode('^_^', $mkey);
-                    \Swoole\Table::$table[$name]->del($key);
+                    \Simoole\Table::$table[$name]->del($key);
                     unset($this->mtable[$mkey]);
                 }
             }
@@ -34,14 +34,14 @@ class ChildProc extends Proc
 
         //注册清空内存表信号
         \Swoole\Process::signal(SIGUSR2, function($signo) {
-            foreach(\Swoole\Table::$table as $name => $table){
+            foreach(\Simoole\Table::$table as $name => $table){
                 T($name)->clear();
             }
             //清空全局内存
-            $sum = \Swoole\Conf::swoole('worker_num') + count(\Swoole\Sub::$procs);
+            $sum = \Simoole\Conf::swoole('worker_num') + count(\Simoole\Sub::$procs);
             for($worker_id = 0; $worker_id < $sum; $worker_id ++){
-                if($worker_id == \Swoole\Root::$worker->id)continue;
-                \Swoole\Sub::send([
+                if($worker_id == \Simoole\Root::$worker->id)continue;
+                \Simoole\Sub::send([
                     'act' => 'delGlobals',
                     'data' => []
                 ], $worker_id);
@@ -69,7 +69,7 @@ class ChildProc extends Proc
                 return count($this->queueData[$data['name']]);
 
             case MEMORY_TABLE_SET:
-                $this->mtable[$data['name'] . '^_^' . $data['key']] = time() + \Swoole\Conf::mtable($data['name'], '__expire');
+                $this->mtable[$data['name'] . '^_^' . $data['key']] = time() + \Simoole\Conf::mtable($data['name'], '__expire');
                 break;
 
             case MEMORY_WEBSOCKET_GET:

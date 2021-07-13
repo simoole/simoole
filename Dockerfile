@@ -1,5 +1,4 @@
-
-FROM php:latest
+FROM phpswoole/swoole:latest
 MAINTAINER author "dean7410@163.com"
 
 ARG timezone
@@ -16,8 +15,6 @@ RUN set -ex \
     && mv composer.phar /usr/local/bin/composer \
     && composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/ \
     # show php version and extensions
-    && pecl install swoole \
-    && docker-php-ext-enable swoole \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && php -v \

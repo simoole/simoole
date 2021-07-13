@@ -4,7 +4,7 @@
  */
 
 namespace Simoole\Util;
-use Swoole\Sub;
+use Simoole\Sub;
 
 class Queue
 {

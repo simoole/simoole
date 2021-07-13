@@ -2,7 +2,7 @@
 
 namespace Simoole\Base;
 
-use Swoole\Sub;
+use Simoole\Sub;
 
 //中间键基类，可用于make函数实例化使用
 class Libaray

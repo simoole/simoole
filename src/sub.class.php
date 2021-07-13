@@ -19,7 +19,7 @@ Class Sub
         self::$conf = array_merge([
             '__public' => [
                 'worker_num' => 1, //子进程进程数量
-                'class_name' => '\Swoole\Util\Child' //子进程实例类名
+                'class_name' => '\Simoole\Util\Child' //子进程实例类名
             ]
         ], Conf::process());
         foreach (self::$conf as $name => $conf){

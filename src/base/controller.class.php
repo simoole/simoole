@@ -6,7 +6,7 @@
  */
 
 namespace Simoole\Base;
-use Swoole\Conf;
+use Simoole\Conf;
 
 Class Controller
 {

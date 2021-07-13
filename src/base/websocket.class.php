@@ -96,7 +96,7 @@ class Websocket
      */
     protected function pushAll($data)
     {
-        foreach(\Swoole\Root::$serv->connections as $fd){
+        foreach(\Simoole\Root::$serv->connections as $fd){
             $this->push($data, $fd);
         }
     }

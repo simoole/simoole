@@ -1,9 +1,9 @@
 <?php
 
 namespace Simoole\Util;
-use Swoole\Conf;
-use Swoole\Sub;
-use Swoole\Root;
+use Simoole\Conf;
+use Simoole\Sub;
+use Simoole\Root;
 
 class Globals
 {

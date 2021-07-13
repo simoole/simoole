@@ -13,7 +13,7 @@ class Crypt
      */
     static public function encode(string $str, string $key = null)
     {
-        $char = \Swoole\Conf::app('keyt');
+        $char = \Simoole\Conf::app('keyt');
         $chars = str_split($char);
         $str = str_replace(['/', '+', '='], ['0x2f', '0x2b', '0x3d'], base64_encode($str));
         $strs = str_split($str);
@@ -41,7 +41,7 @@ class Crypt
      */
     static public function decode(string $str, string $key = null)
     {
-        $char = \Swoole\Conf::app('keyt');
+        $char = \Simoole\Conf::app('keyt');
         $chars = str_split($char);
         $strs = str_split($str);
         $keys = str_split(substr(preg_replace('/0-9a-zA-Z/i', '$0', base64_encode(sha1($key?:str_rot13($char)))),0,16));
@@ -77,7 +77,7 @@ class Crypt
         $bit = ceil(strlen(decbin($arr[0]))/8) * 8;
         $keys = [];
         $str = '';
-        foreach(str_split(\Swoole\Conf::tcp('secret_key')) as $v){
+        foreach(str_split(\Simoole\Conf::tcp('secret_key')) as $v){
             $str .= sprintf( "%08d", decbin(ord($v)));
             if(strlen($str) == $bit){
                 $keys[] = bindec($str);

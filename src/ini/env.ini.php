@@ -5,7 +5,7 @@
 
 //CLI命令
 $comms = ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup'];
-$cli_command = $argv[0] == 'simoole' ? $argv[1] : $argv[2];
+$cli_command = strpos($argv[0], 'simoole') !== false ? $argv[1] : $argv[2];
 if($pos = strpos($cli_command, ':')){
     $cli_command = substr($cli_command, 0, $pos);
     define('CLI_COMMAND_VERSION', substr($cli_command, $pos + 1));

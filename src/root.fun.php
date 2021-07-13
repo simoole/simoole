@@ -50,7 +50,7 @@ function array_key_merge()
  */
 function createKey(string $string, bool $isNumber = false, string $keyt = null)
 {
-    $keyt = $keyt ?? \Swoole\Conf::app('keyt');
+    $keyt = $keyt ?? \Simoole\Conf::app('keyt');
     $array = str_split(sha1($string));
     $arr = [];
     foreach($array as $char){
@@ -86,13 +86,13 @@ function session(string $key, $val = '[NULL]')
 		        return false;
             }
 			$id = is_string($val) && $val !== '[NULL]' ? $val : null;
-            U()->session = new \Swoole\Session($id);
+            U()->session = new \Simoole\Session($id);
 			return false;
 		case '[ID]':
 			return U()->session->getId();
 		case '[HAS]':
 			if(empty($val) || $val === '[NULL]')return false;
-			return \Swoole\Session::has($val);
+			return \Simoole\Session::has($val);
 		case '[CLEAR]':
             U('session')->save([]);
 		default:
@@ -151,27 +151,27 @@ function C(string $key, $val = null)
     if($val !== null){
         $arr[] = $val;
     }
-    return call_user_func_array("\\Swoole\\Conf::get", $arr);
+    return call_user_func_array("\\Simoole\\Conf::get", $arr);
 }
 
 /**
  * 实例化没有应用模型的数据模型
  * @param string $tablename 数据表名
  * @param string $dbname 数据库名
- * @return Swoole\Base\Model
+ * @return Simoole\Base\Model
  */
 function M(string $tablename = null, string $dbname = null)
 {
     if(empty($dbname)){
 	    $dbname = 'DEFAULT';
-	    if(\Swoole\Conf::database(U('dbname')))
+	    if(\Simoole\Conf::database(U('dbname')))
             $dbname = U('dbname');
     }
-    if(!\Swoole\Conf::database($dbname)){
+    if(!\Simoole\Conf::database($dbname)){
         trigger_error("Database config \"{$dbname}\" is not exist!", E_USER_ERROR);
         return false;
     }
-    $_model = new \Swoole\Base\Model($dbname);
+    $_model = new \Simoole\Base\Model($dbname);
     if(!is_object($_model->db) || !is_object($_model->db->link)){
         trigger_error("Database config \"{$dbname}\" can't instantiate!", E_USER_ERROR);
         return false;
@@ -184,22 +184,22 @@ function M(string $tablename = null, string $dbname = null)
  * 应用模型实例化
  * @param string $tablename 数据表名
  * @param string $dbname 数据库名
- * @return Swoole\Base\Model
+ * @return Simoole\Base\Model
  */
 function D(string $tablename, string $dbname = null)
 {
     if(empty($dbname)){
         $dbname = 'DB_CONF';
-        if(\Swoole\Conf::database(U('dbname')))
+        if(\Simoole\Conf::database(U('dbname')))
             $dbname = U('dbname');
     }
-    if(!\Swoole\Conf::database($dbname)){
+    if(!\Simoole\Conf::database($dbname)){
         trigger_error("Database config \"{$dbname}\" is not exist!", E_USER_ERROR);
         return false;
     }
 
     $class_name = "\\App\\Model\\" . ucfirst($tablename) . "Model";
-    if(!isset(\Swoole\Root::$map[$class_name]) || !class_exists($class_name)){
+    if(!isset(\Simoole\Root::$map[$class_name]) || !class_exists($class_name)){
         trigger_error($class_name . ' is not exist!', E_USER_ERROR);
         return false;
     }else{
@@ -224,7 +224,7 @@ function I($name, $default = false)
 	if(!$user = U())return $default;
 	if(in_array($arr[0], ['get','post','cookie','server','files','header','request','input'])){
 		$act = $arr[0];
-		$data = \Swoole\Root::$user[getcid()]->$act;
+		$data = \Simoole\Root::$user[getcid()]->$act;
 		if(!empty($data) && is_string($data))return $data;
 		if(!is_array($data) || empty($data)){
 			return $default;
@@ -256,7 +256,7 @@ function I($name, $default = false)
  */
 function cookie(string $key, string $val = '[NULL]', int $expire = null)
 {
-    $user = \Swoole\Root::$user[getcid()];
+    $user = \Simoole\Root::$user[getcid()];
     if($val === '[NULL]'){
         //查询
         $arr = explode('.', $key);
@@ -312,7 +312,7 @@ function cookie(string $key, string $val = '[NULL]', int $expire = null)
  */
 function L($msg, $prefix = 'user', $dirname = null)
 {
-    switch (\Swoole\Conf::log('split')){
+    switch (\Simoole\Conf::log('split')){
         case 'i': $d = '_Y_m_d_H_i';break;
         case 'h': $d = '_Y_m_d_H';break;
         case 'd': $d = '_Y_m_d';break;
@@ -334,7 +334,7 @@ function L($msg, $prefix = 'user', $dirname = null)
         $filepath = $dir . $prefix . 'record.log';
     else
         $filepath = $dir . $prefix . date($d) . '.log';
-    if(!is_file($filepath) && ($keep = \Swoole\Conf::log('keep')) > 0){
+    if(!is_file($filepath) && ($keep = \Simoole\Conf::log('keep')) > 0){
         $files = scandir($dir);
         $_files = [];
         foreach($files as $file){
@@ -371,7 +371,7 @@ function L($msg, $prefix = 'user', $dirname = null)
 function T(string $tablename){
 	static $tables = [];
 	if(!isset($tables[$tablename])){
-		$tables[$tablename] = new \Swoole\Table($tablename);
+		$tables[$tablename] = new \Simoole\Table($tablename);
 	}
 	return $tables[$tablename];
 }
@@ -384,9 +384,9 @@ function T(string $tablename){
  */
 function U(string $pname = null, $value = '[NULL]'){
     $uid = getcid();
-    if(!isset(\Swoole\Root::$user[$uid]))return false;
+    if(!isset(\Simoole\Root::$user[$uid]))return false;
 
-    $user = \Swoole\Root::$user[$uid];
+    $user = \Simoole\Root::$user[$uid];
     if($pname === null)return $user;
     if(!isset($user->$pname))return false;
 
@@ -399,14 +399,14 @@ function U(string $pname = null, $value = '[NULL]'){
  * 实例化类
  * @param string $name 要实例化的类（子进程名:类名）
  * @param array $params 实例化参数
- * @return \Swoole\Sub|mixed|null
+ * @return \Simoole\Sub|mixed|null
  */
 function make(string $name, array $params = [])
 {
     if(class_exists($name)){
         $instance = (new ReflectionClass($name))->newInstanceArgs($params);
     }else{
-        if($conf = \Swoole\Conf::process($name)){
+        if($conf = \Simoole\Conf::process($name)){
             return new class($name, $conf['class_name']){
 
                 private $process_name = null;
@@ -422,7 +422,7 @@ function make(string $name, array $params = [])
                 {
                     //判断该方法是否有返回值
                     $is_return = (new ReflectionClass($this->class_name . 'Proc'))->getMethod($name)->hasReturnType();
-                    return \Swoole\Sub::send([
+                    return \Simoole\Sub::send([
                         '__actname' => $name,
                         '__params' => $params
                     ], $this->process_name, $is_return);
@@ -600,7 +600,7 @@ function Q(string $name)
 {
     static $instances = [];
     if(!isset($instances[$name])){
-        $instances[$name] = new \Swoole\Util\Queue($name);
+        $instances[$name] = new \Simoole\Util\Queue($name);
     }
     return $instances[$name];
 }
@@ -608,13 +608,13 @@ function Q(string $name)
 /**
  * 获取全局数据实例
  * @param string $name 数据KEY
- * @return \Swoole\Util\Globals
+ * @return \Simoole\Util\Globals
  */
 function G(string $name, int $worker_id = null)
 {
     static $instances = [];
     if(!isset($instances[$name])){
-        $instances[$name] = new \Swoole\Util\Globals($name, $worker_id);
+        $instances[$name] = new \Simoole\Util\Globals($name, $worker_id);
     }
     return $instances[$name];
 }

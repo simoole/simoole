@@ -130,7 +130,7 @@ class mysqlCO
                         if(empty(self::$links[$uid]))unset(self::$links[$uid]);
                         $this->link = null;
                         if(isset($this->runlogs) && !empty($this->runlogs)){
-                            $name = \Swoole\Root::$worker->name ?? 'worker';
+                            $name = \Simoole\Root::$worker->name ?? 'worker';
                             L($this->runlogs, $name, 'common');
                             unset($this->runlogs);
                             unset($this->runtime);

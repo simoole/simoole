@@ -4,7 +4,7 @@
  */
 
 namespace App\Websocket;
-use Core\Base\Websocket;
+use Simoole\Base\Websocket;
 
 class IndexWebsocket extends Websocket
 {

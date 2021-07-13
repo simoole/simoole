@@ -32,7 +32,7 @@ Class Root
      */
     static public function run()
     {
-        $command = "\\Swoole\\Root::" . CLI_COMMAND;
+        $command = "\\Simoole\\Root::" . CLI_COMMAND;
         $command();
     }
 
@@ -60,7 +60,7 @@ Class Root
     {
         if(is_file(TMP_PATH . 'server.pid')){
             $pid = @file_get_contents(TMP_PATH . 'server.pid');
-            if($pid && \Swoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
+            if($pid && \Simoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
         }
         ini_set('default_socket_timeout', -1);
         //开启session
@@ -105,21 +105,21 @@ Class Root
 
         self::$serv->set($setup);
 
-        self::$serv->on('start', 'Swoole\\Http::start');
-        self::$serv->on('shutdown', 'Swoole\\Http::shutdown');
-        self::$serv->on('managerstart', 'Swoole\\Http::managerStart');
+        self::$serv->on('start', 'Simoole\\Http::start');
+        self::$serv->on('shutdown', 'Simoole\\Http::shutdown');
+        self::$serv->on('managerstart', 'Simoole\\Http::managerStart');
 
         //设置工作/任务进程启动回调
-        self::$serv->on('workerstart', 'Swoole\\Worker::onstart');
+        self::$serv->on('workerstart', 'Simoole\\Worker::onstart');
 
         //设置工作/任务进程结束回调
-        self::$serv->on('workerstop', 'Swoole\\Worker::onstop');
+        self::$serv->on('workerstop', 'Simoole\\Worker::onstop');
 
         //设置进程间管道通信回调
-        self::$serv->on('pipemessage', 'Swoole\\Worker::pipeMessage');
+        self::$serv->on('pipemessage', 'Simoole\\Worker::pipeMessage');
 
         //设置HTTP请求回调
-        self::$serv->on('request', 'Swoole\\Http::request');
+        self::$serv->on('request', 'Simoole\\Http::request');
 
         //创建子进程
         Sub::create();

@@ -35,9 +35,9 @@ class Console {
     {
         //error_reporting(0);
         //封装错误处理
-        set_error_handler("Swoole\\Console::error");
+        set_error_handler("Simoole\\Console::error");
         //封装异常处理
-        set_exception_handler("Swoole\\Console::exception");
+        set_exception_handler("Simoole\\Console::exception");
     }
 
     static public function error($errno, $errmsg, $filename, $linenum)

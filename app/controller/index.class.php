@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Controller;
-use Core\Base\Controller;
+use Simoole\Base\Controller;
 
 class IndexController extends Controller
 {

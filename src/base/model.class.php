@@ -18,7 +18,7 @@ Class Model {
      */
     static public function _initialize()
     {
-        $configs = \Swoole\Conf::database();
+        $configs = \Simoole\Conf::database();
         foreach($configs as $name => $conf){
             //是否启用连接池
             if(!isset($conf['POOL']) || !$conf['POOL'])continue;
@@ -33,14 +33,14 @@ Class Model {
 
     public function __construct(string $dbname = null)
     {
-        $this->config = \Swoole\Conf::database($dbname?:'CONF');
+        $this->config = \Simoole\Conf::database($dbname?:'CONF');
         if(empty($this->config) && !is_array($this->config)){
             trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
         }else{
             $this->dbname = isset($this->config['NAME']) ? $this->config['NAME'] : $dbname;
             $dbname = $dbname ? : 'DEFAULT';
             $type = $this->config['TYPE']?:'mysql';
-            $classname = "\\Swoole\\Db\\{$type}CO";
+            $classname = "\\Simoole\\Db\\{$type}CO";
             $this->db = new $classname($this->config, $dbname);
         }
     }

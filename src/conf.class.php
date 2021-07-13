@@ -11,9 +11,9 @@ class Conf
         static $config = [];
         if(!isset($config[$name])){
             $config[$name] = [];
-            if(in_array($name, ['server','mtable']))
+            if(is_file(CORE_PATH . 'ini/' . $name . INI_EXT))
                 $config[$name] = Root::loadFiles(CORE_PATH . 'ini/' . $name . INI_EXT, true);
-            if(in_array($name, ['server','database','map','mtable','process','redis']))
+            if(is_file(__ROOT__ . 'config/system/' . $name . INI_EXT))
                 $_config = Root::loadFiles(__ROOT__ . 'config/system/' . $name . INI_EXT, true);
             elseif($name == 'route'){
                 $_config = Root::loadFiles(__ROOT__ . 'config/' . $name . INI_EXT, true);

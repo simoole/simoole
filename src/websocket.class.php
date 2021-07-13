@@ -23,13 +23,13 @@ abstract class Websocket
         $serv = new \swoole_websocket_server($ip, $port) or die('Swoole启动失败!');
 
         //设置websocket握手回调
-        $serv->on('handshake', '\\Swoole\\Websocket::open');
+        $serv->on('handshake', '\\Simoole\\Websocket::open');
 
         //设置websocket消息接收回调
-        $serv->on('message', '\\Swoole\\Websocket::message');
+        $serv->on('message', '\\Simoole\\Websocket::message');
 
         //设置websocket连接关闭回调
-        $serv->on('close', '\\Swoole\\Websocket::close');
+        $serv->on('close', '\\Simoole\\Websocket::close');
 
         return $serv;
     }

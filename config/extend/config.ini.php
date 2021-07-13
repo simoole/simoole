@@ -1,1 +1,5 @@
-<?php//平台扩展配置return [    'body' => '欢迎使用SSF(Simple-Swoole-Framework)! 您的应用已经部署成功!'];
+<?php
+//平台扩展配置
+return [
+    'body' => 'Welcome to simoole! Your application has been successfully deployed!'
+];

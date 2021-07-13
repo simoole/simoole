@@ -11,11 +11,11 @@
  * @param array $_config 多维数组二
  * @return Array 合并后的多维数组
  */
-function array_mer(array $config, array $_config)
+function arrayMerge(array $config, array $_config)
 {
 	foreach($_config as $key => $val){
 		if(array_key_exists($key, $config) && is_array($val)){
-			$config[$key] = array_mer($config[$key], $_config[$key]);
+			$config[$key] = arrayMerge($config[$key], $_config[$key]);
 		}else
 			$config[$key] = $val;
 	}

@@ -4,7 +4,7 @@
 
 -----------
 ## 简单部署
-<pre><code>git clone https://github.com/ljj7410/Simoole.git
+<pre><code>git clone https://gitee.com/dean_lee/Simoole.git
 cd Simoole
 docker build -t simoole .
 docker run --name project -p 9200:9200 -d simoole</code></pre>
@@ -250,5 +250,5 @@ L($class, 'class', 'ext');
 ```
 
 -----------
-更多WIKI请跳转：https://github.com/ljj7410/Simoole/wiki
-Simoole 官方网站 simoole.com
+更多WIKI请跳转：https://gitee.com/dean_lee/Simoole/wikis
+

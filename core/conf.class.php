@@ -22,7 +22,7 @@ class Conf
                     foreach($files as $file){
                         $arr = Root::loadFiles($file, true);
                         if(is_array($arr[array_key_first($arr)]))
-                            $_config = array_mer($_config, Root::loadFiles($file, true));
+                            $_config = arrayMerge($_config, Root::loadFiles($file, true));
                         else {
                             $filename = substr($file, strrpos($file, '/') + 1, strlen(INI_EXT) * -1);
                             $_config[$filename] = Root::loadFiles($file, true);
@@ -34,7 +34,7 @@ class Conf
                 return null;
             }
             if(!empty($_config)){
-                $config[$name] = array_mer($config[$name], $_config);
+                $config[$name] = arrayMerge($config[$name], $_config);
             }
             //替换变量
             $config[$name] = changeConfigValue($config[$name]);
@@ -62,7 +62,7 @@ class Conf
             foreach($files as $file){
                 if(strpos($file, INI_EXT) > 0){
                     $config = Root::loadFiles(__ROOT__ . 'config/extend/' . $file, true);
-                    self::$data = array_mer(self::$data, $config);
+                    self::$data = arrayMerge(self::$data, $config);
                 }
             }
         }
@@ -89,7 +89,7 @@ class Conf
             foreach($files as $file){
                 if(strpos($file, INI_EXT) > 0){
                     $config = Root::loadFiles(__ROOT__ . 'config/extend/' . $file, true);
-                    self::$data = array_mer(self::$data, $config);
+                    self::$data = arrayMerge(self::$data, $config);
                 }
             }
         }

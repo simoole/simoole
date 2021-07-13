@@ -71,7 +71,7 @@ Class Controller
     }
 
     /**
-     * 输出的头部
+     * 输出头部header
      * @param string|array $key
      * @param string $value
      */
@@ -83,6 +83,19 @@ Class Controller
             }
         }else
             U('response')->header($key, $value);
+    }
+
+    /**
+     * 输出尾部header（http2专用）
+     */
+    protected function trailer(string $key, string $value)
+    {
+        if(is_array($key)){
+            foreach($key as $k => $v){
+                U('response')->trailer($k, $v);
+            }
+        }else
+            U('response')->trailer($key, $value);
     }
 
     /**

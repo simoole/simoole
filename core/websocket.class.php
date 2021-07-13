@@ -57,9 +57,6 @@ abstract class Websocket
             'class_name' => ''
         ];
 
-        //获取参数
-        $params = $data['get'];
-
         [$class_path, $route_path, $group_name] = Route::getPath($data['header']['http_host']??'', $data['server']['request_uri']??'/');
 
         if(empty($class_path)){
@@ -89,7 +86,7 @@ abstract class Websocket
         U()->log('INFO: Websocket instance completed');
         if($ob->_before_open() !== false){
             U()->log('INFO: _start() execution completed');
-            $rs = call_user_func_array([$ob, '_open'], $params);
+            $rs = $ob->_open();
             U()->log('INFO: _open() execution completed');
             $ob->_end();
             U()->log('INFO: _end() execution completed');
@@ -296,6 +293,7 @@ abstract class Websocket
         //心跳定时器
         if(Conf::server('WEBSOCKET','heartbeat') == 1){
             \Swoole\Timer::tick(200, function (){
+                if(empty(self::$fds))return;
                 foreach(self::$fds as $i => $fd){
                     $info = Root::$serv->getClientInfo($fd);
                     if(isset($info['uid']) && $info['uid'] != Root::$serv->worker_id)
@@ -308,6 +306,7 @@ abstract class Websocket
             \Swoole\Timer::tick(1000, function() {
                 static $loop = [];
                 static $fail = [];
+                if(empty(self::$fds))return;
                 $conf = Conf::server('WEBSOCKET');
                 $is_binary = Conf::server('TCP','is_binary');
                 $data = Sub::send(['type' => MEMORY_WEBSOCKET_HEART], null, true);

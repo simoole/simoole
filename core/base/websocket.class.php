@@ -59,7 +59,7 @@ class Websocket
         ob_clean();
         $this->push([
             'status' => '1',
-            'info' => $msg
+            'data' => $msg
         ]);
     }
 
@@ -72,7 +72,7 @@ class Websocket
         ob_clean();
         $this->push([
             'status' => '0',
-            'info' => $msg
+            'data' => $msg
         ]);
     }
 

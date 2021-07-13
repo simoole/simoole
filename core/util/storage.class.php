@@ -6,11 +6,13 @@ class Storage
 {
     private $_key = null;
     private $redis = null;
+    private $expire = 0;
 
-    public function __construct(string $key)
+    public function __construct(string $key, ?int $expire = null)
     {
         $this->_key = 'storage_' . $key;
         $this->redis = getRedis();
+        $this->expire = $expire ?? Conf::redis('DEFAULT.expire');
     }
 
     private function _continue()
@@ -18,7 +20,7 @@ class Storage
         if(!$this->redis->exists($this->_key))
             $this->redis->hMset($this->_key, []);
         //每次使用保存期延期
-        $this->redis->expire($this->_key, Conf::redis('DEFAULT.expire'));
+        $this->redis->expire($this->_key, $this->expire);
     }
 
     /**

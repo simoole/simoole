@@ -42,7 +42,7 @@ class Route
                     array_pop($arr);
                     $sub_domain = strtolower(join('.', $arr));
                     if(isset($route_conf['SUB_DOMAIN'][$sub_domain])){
-                        self::$list = array_mer(self::$list, $route_conf[$route_conf['SUB_DOMAIN'][$sub_domain]]);
+                        self::$list = arrayMerge(self::$list, $route_conf[$route_conf['SUB_DOMAIN'][$sub_domain]]);
                         if(array_key_exists($request_uri, self::$list)){
                             $class_path = self::$list[$request_uri];
                             $group_name = $route_conf['SUB_DOMAIN'][$sub_domain];
@@ -54,7 +54,7 @@ class Route
         }else{
             foreach($route_conf as $name => $list){
                 if(in_array($name, ['COMMON','SUB_DOMAIN']))continue;
-                $list = array_mer(self::$list, $list);
+                $list = arrayMerge(self::$list, $list);
                 if(array_key_exists($request_uri, $list)){
                     $class_path = $list[$request_uri];
                     $group_name = $name;

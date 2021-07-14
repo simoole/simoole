@@ -9,10 +9,6 @@ ENV TIMEZONE=${timezone:-"Asia/Shanghai"} \
 
 RUN set -ex \
     # install composer
-    && cd /tmp \
-    && curl -O https://install.phpcomposer.com/composer.phar \
-    && chmod u+x composer.phar \
-    && mv composer.phar /usr/local/bin/composer \
     && composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/ \
     # show php version and extensions
     && pecl install redis \
@@ -29,7 +25,7 @@ RUN set -ex \
         echo "post_max_size=128M"; \
         echo "memory_limit=1G"; \
         echo "date.timezone=${TIMEZONE}"; \
-    } | tee conf.d/ssf.ini \
+    } | tee conf.d/simoole.ini \
     # - config timezone
     && ln -sf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime \
     && echo "${TIMEZONE}" > /etc/timezone
@@ -37,6 +33,8 @@ RUN set -ex \
 WORKDIR /www
 
 COPY . /www
+
+RUN chmod u+x simoole
 
 #RUN composer install
 

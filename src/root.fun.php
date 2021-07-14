@@ -558,7 +558,7 @@ function getRedis(string $name = 'DEFAULT')
 {
     static $instance = [];
     if(!isset($instance[$name]) || !$instance[$name]->ping()){
-        $conf = \Core\Conf::redis($name);
+        $conf = \Simoole\Conf::redis($name);
         if(!$conf){
             trigger_error('没有找到指定的REDIS配置', E_USER_ERROR);
             return false;

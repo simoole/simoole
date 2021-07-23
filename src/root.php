@@ -42,15 +42,15 @@ Class Root
     static public function help()
     {
         echo <<<HELP
-          命令列表：
-            1. start - 启动框架
-            2. reload - 热更新（只会启动工作进程和自定义子进程，并重载app文件夹中的类库）
-            3. restart - 重启框架
-            4. stop - 结束框架
-            5. cleanup - 清空table内存表
-            6. update - 更新框架版本
+  命令列表：
+    1. start - 启动框架
+    2. reload - 热更新（只会启动工作进程和自定义子进程，并重载app文件夹中的类库）
+    3. restart - 重启框架
+    4. stop - 结束框架
+    5. cleanup - 清空table内存表
+    6. update - 更新框架版本
 
-        HELP;
+HELP;
     }
 
     /**
@@ -60,7 +60,7 @@ Class Root
     {
         if(is_file(TMP_PATH . 'server.pid')){
             $pid = @file_get_contents(TMP_PATH . 'server.pid');
-            if($pid && \Simoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
+            if($pid && \Swoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
         }
         ini_set('default_socket_timeout', -1);
         //开启session
@@ -206,17 +206,31 @@ Class Root
      */
     static public function update()
     {
-        $cli = new \Swoole\Http\Client('www.simoole.com', '9988');
-        $cli->get('/download/' . CLI_COMMAND_VERSION);
+        $cli = new \Swoole\Http\Client('code.simoole.com', '9988');
+        $cli->post('/', [
+            'current' => SIMOOLE_VERSION,
+            'target' => CLI_COMMAND_VERSION
+        ]);
         $res = json_decode($cli->body);
         $cli->close();
         if(json_last_error() === JSON_ERROR_NONE && !empty($res)){
             if($res['status'] == 1){
-                unlink(CORE_PATH);
                 foreach($res['data'] as $path => $file){
-                    $dir = CORE_PATH . strrchr($path, '/');
-                    if(!is_dir($dir))mkdir($dir, 0777, true);
-                    file_put_contents(CORE_PATH . $path, $file);
+                    $filepath = CORE_PATH . $path;
+                    if(empty($file) && is_file($filepath)){
+                        unlink($filepath);
+                        echo $filepath . ' is deleted!';
+                    }elseif(!empty($file)){
+                        if(is_file($filepath)){
+                            file_put_contents($filepath, $file);
+                            echo $filepath . " is updated!";
+                        }else{
+                            $dir = CORE_PATH . strrchr($path, '/');
+                            if(!is_dir($dir))mkdir($dir, 0777, true);
+                            file_put_contents($filepath, $file);
+                            echo $filepath . " is added!";
+                        }
+                    }
                 }
                 die('Update Success! Restart to take effect.');
             }else{

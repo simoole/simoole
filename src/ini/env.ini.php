@@ -5,13 +5,15 @@
 
 //CLI命令
 $comms = ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup'];
-$cli_command = strpos($argv[0], 'simoole') !== false ? $argv[1] : $argv[2];
+$cli_command = strpos($argv[0], 'simoole') !== false ? ($argv[1] ?? $comms[0]) : $argv[2];
 if($pos = strpos($cli_command, ':')){
-    $cli_command = substr($cli_command, 0, $pos);
     define('CLI_COMMAND_VERSION', substr($cli_command, $pos + 1));
+    $cli_command = substr($cli_command, 0, $pos);
 }
 if(!empty($cli_command) && in_array($cli_command, $comms))define('CLI_COMMAND', $cli_command);
 else define('CLI_COMMAND', 'help');
+
+define('SIMOOLE_VERSION', '4.0.0');
 //配置文件后缀
 define('INI_EXT', '.ini.php');
 //类库文件后缀

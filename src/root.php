@@ -60,7 +60,7 @@ Class Root
     {
         if(is_file(TMP_PATH . 'server.pid')){
             $pid = @file_get_contents(TMP_PATH . 'server.pid');
-            if($pid && \Simoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
+            if($pid && \Swoole\Process::kill($pid, 0))die("Framework has been started!" . PHP_EOL);
         }
         ini_set('default_socket_timeout', -1);
         //开启session

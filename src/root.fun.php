@@ -37,31 +37,13 @@ function arrayMerge(array $config, array $_config)
 	foreach($_config as $key => $val){
 		if(array_key_exists($key, $config) && is_array($val)){
 			$config[$key] = arrayMerge($config[$key], $_config[$key]);
-		}else
-			$config[$key] = $val;
+		}else{
+		    if($val === null && isset($config[$key]))continue;
+            $config[$key] = $val;
+        }
 	}
 	return $config;
 };
-
-/**
- * 合成带键名的数组
- * @param array $array 数组一
- * @param array $array 数组二 ...
- * @return array 合成后的数组
- */
-function array_key_merge()
-{
-	$data = func_get_args();
-	$array = [];
-	foreach($data as $d){
-		if(is_array($d)){
-			foreach($d as $k => $v) {
-				$array[$k] = $v;
-			}
-		}
-	}
-	return $array;
-}
 
 /**
  * 生成不可逆散列(40位)

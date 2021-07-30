@@ -3,6 +3,10 @@
  * 应用实例配置
  */
 return [
+    //应用名称
+    'name' => APP_NAME,
+    //应用访问地址
+    'url' => 'http://127.0.0.1:' . \Simoole\Conf::tcp('port'),
     //自动增加try..catch
     'auto_try' => false,
     //实例start前执行的函数名(不可进行数据库操作)

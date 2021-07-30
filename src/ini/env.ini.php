@@ -46,3 +46,20 @@ if(!is_dir(TMP_PATH))@mkdir(TMP_PATH);
 //日志目录路径
 define('LOG_PATH', __ROOT__ . 'log/');
 if(!is_dir(LOG_PATH))@mkdir(LOG_PATH);
+
+//解析.env环境变量
+if(is_file(__ROOT__ . '.env')){
+    $data = parse_ini_file('.env', false, INI_SCANNER_RAW);
+    if(!empty($data['APP_NAME'])){
+        define('APP_NAME', $data['APP_NAME']);
+    }else{
+        define('APP_NAME', 'Simoole');
+    }
+    unset($data['APP_NAME']);
+    foreach($data as $key => $val){
+        $key = strtoupper(APP_NAME) . '_' . $key;
+        if($val === 'true')$val = '[TRUE]';
+        if($val === 'false')$val = '[FALSE]';
+        putenv($key . '=' . $val);
+    }
+}else define('APP_NAME', 'Simoole');

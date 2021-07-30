@@ -6,6 +6,27 @@
  */
 
 /**
+ * 获取环境变量
+ * @param string $key
+ * @param null $default
+ * @return array|bool|mixed|string|null
+ */
+function env(string $key, $default = null)
+{
+    $_key = strtoupper(APP_NAME) . '_' . $key;
+    $val = getenv($_key);
+    switch ($val){
+        case '[TRUE]': return true;
+        case '[FALSE]': return false;
+    }
+    if($val === false){
+        $val = getenv($key);
+    }
+    if($val === false)return $default;
+    return $val;
+}
+
+/**
  * 合并多维数组
  * @param array $config 多维数组一
  * @param array $_config 多维数组二

@@ -3,8 +3,12 @@
  * 应用实例配置
  */
 return [
+    //应用名称
+    'name' => APP_NAME,
+    //应用访问地址
+    'url' => env('APP_URL'),
     //自动增加try..catch
-    'auto_try' => false,
+    'auto_try' => env('APP_AUTO_TRY'),
     //实例start前执行的函数名(不可进行数据库操作)
     'before_start' => null,
     //实例start后执行的函数名(不可进行数据库操作)
@@ -16,5 +20,5 @@ return [
     //时区
     'timezone' => 'Asia/Shanghai',
     //加密字典
-    'keyt' => 'sXODQpGzexIwo8gJqdEj94ZFPc2KNUC3kBaTmMSL07r6u15yYnHifVlWbtvhAR'
+    'keyt' => env('APP_KEY_DICT')
 ];

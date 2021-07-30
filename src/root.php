@@ -206,8 +206,22 @@ HELP;
      */
     static public function update()
     {
+        $hash_fun = function(string $path = CORE_PATH) use (&$hash_fun){
+            $hash_arr = [];
+            foreach(scandir($path) as $file){
+                if(in_array($file, ['.', '..']))continue;
+                $filepath = $path . $file;
+                if(is_dir($filepath)){
+                    $hash_arr[$file] = $hash_fun($filepath . '/');
+                }else{
+                    $hash_arr[$file] = hash_file('md5', $filepath);
+                }
+            }
+            return $hash_arr;
+        };
         $cli = new \Swoole\Http\Client('code.simoole.com', '9988');
         $cli->post('/', [
+            'files' => $hash_fun(),
             'current' => SIMOOLE_VERSION,
             'target' => CLI_COMMAND_VERSION
         ]);

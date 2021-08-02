@@ -16,8 +16,7 @@ class Http
      */
     static public function start(\swoole_server $server)
     {
-        global $argv;
-        \swoole_set_process_name("Master process in <". __ROOT__ .">");
+        swoole_set_process_name("[". APP_NAME ."] Master process in <". __ROOT__ .">");
 
         //实例启动后执行
         $method = C('APP.after_start');
@@ -46,9 +45,8 @@ class Http
      */
     static public function managerStart(\swoole_server $server)
     {
-        global $argv;
         file_put_contents(TMP_PATH . 'manager.pid', $server->manager_pid);
-        \swoole_set_process_name("Manager process in <". __ROOT__ .">");
+        swoole_set_process_name("[". APP_NAME ."] Manager process in <". __ROOT__ .">");
     }
 
     /**
@@ -73,8 +71,10 @@ class Http
             'class_name' => '',
             'action_name' => ''
         ];
-
-        [$class_path, $route_path, $group_name] = Route::getPath($data['header']['http_host']??'', $data['server']['request_uri']??'/');
+        $host = '';
+        if(isset($request->header['host']))$host = $request->header['host'];
+        if(isset($request->header['http_host']))$host = $request->header['http_host'];
+        [$class_path, $route_path, $group_name] = Route::getPath($host, $data['server']['request_uri']??'/');
         if($class_path === null){
             $response->end('');
             return;

@@ -27,7 +27,7 @@ Class Worker
         //实例化进程对象
         Root::$worker = new self();
         file_put_contents(TMP_PATH . "worker_{$worker_id}.pid", $server->worker_pid);
-        swoole_set_process_name("Worker[{$worker_id}] process in <". __ROOT__ .">");
+        swoole_set_process_name("[". APP_NAME ."] Worker[{$worker_id}] process in <". __ROOT__ .">");
         echo "WorkerID[{$worker_id}] PID[". $server->worker_pid ."] creation finish!" . PHP_EOL;
         //工作进程启动后执行
         $method = Conf::app('worker_start');

@@ -206,53 +206,56 @@ HELP;
      */
     static public function update()
     {
-        $hash_fun = function(string $path = CORE_PATH) use (&$hash_fun){
-            $hash_arr = [];
-            foreach(scandir($path) as $file){
-                if(in_array($file, ['.', '..']))continue;
-                $filepath = $path . $file;
-                if(is_dir($filepath)){
-                    $hash_arr[$file] = $hash_fun($filepath . '/');
-                }else{
-                    $hash_arr[$file] = hash_file('md5', $filepath);
-                }
-            }
-            return $hash_arr;
-        };
-        $cli = new \Swoole\Http\Client('code.simoole.com', '9988');
-        $cli->post('/', [
-            'files' => $hash_fun(),
-            'current' => SIMOOLE_VERSION,
-            'target' => CLI_COMMAND_VERSION
-        ]);
-        $res = json_decode($cli->body);
-        $cli->close();
-        if(json_last_error() === JSON_ERROR_NONE && !empty($res)){
-            if($res['status'] == 1){
-                foreach($res['data'] as $path => $file){
-                    $filepath = CORE_PATH . $path;
-                    if(empty($file) && is_file($filepath)){
-                        unlink($filepath);
-                        echo $filepath . ' is deleted!';
-                    }elseif(!empty($file)){
-                        if(is_file($filepath)){
-                            file_put_contents($filepath, $file);
-                            echo $filepath . " is updated!";
-                        }else{
-                            $dir = CORE_PATH . strrchr($path, '/');
-                            if(!is_dir($dir))mkdir($dir, 0777, true);
-                            file_put_contents($filepath, $file);
-                            echo $filepath . " is added!";
-                        }
+        \Swoole\Coroutine\run(function(){
+            $hash_fun = function(string $path = CORE_PATH) use (&$hash_fun){
+                $hash_arr = [];
+                foreach(scandir($path) as $file){
+                    if(in_array($file, ['.', '..']))continue;
+                    $filepath = $path . $file;
+                    if(is_dir($filepath)){
+                        $hash_arr[$file] = $hash_fun($filepath . '/');
+                    }else{
+                        $hash_arr[$file] = hash_file('md5', $filepath);
                     }
                 }
-                die('Update Success! Restart to take effect.');
+                return $hash_arr;
+            };
+            $cli = new \Swoole\Coroutine\Http\Client('code.simoole.com', '9988');
+            $cli->post('/', [
+                'files' => $hash_fun(),
+                'current' => SIMOOLE_VERSION,
+                'target' => CLI_COMMAND_VERSION
+            ]);
+            $res = json_decode($cli->body, true);
+            $cli->close();
+
+            if(json_last_error() === JSON_ERROR_NONE && !empty($res)){
+                if($res['status'] == 1){
+                    foreach($res['data'] as $path => $file){
+                        $filepath = CORE_PATH . $path;
+                        if(empty($file) && is_file($filepath)){
+                            unlink($filepath);
+                            echo $filepath . ' is deleted!' . PHP_EOL;
+                        }elseif(!empty($file)){
+                            if(is_file($filepath)){
+                                file_put_contents($filepath, $file);
+                                echo $filepath . " is updated!" . PHP_EOL;
+                            }else{
+                                $dir = CORE_PATH . strrchr($path, '/');
+                                if(!is_dir($dir))mkdir($dir, 0777, true);
+                                file_put_contents($filepath, $file);
+                                echo $filepath . " is added!" . PHP_EOL;
+                            }
+                        }
+                    }
+                    echo 'Update Success! Restart to take effect.' . PHP_EOL;
+                }else{
+                    echo 'Update Failed! Failure Cause: ' . $res['data'] . PHP_EOL;
+                }
             }else{
-                die('Update Failed! Failure Cause: ' . $res['data']);
+                echo 'Update Failed!' . PHP_EOL;
             }
-        }else{
-            die('Update Failed!');
-        }
+        });
     }
 
     /**

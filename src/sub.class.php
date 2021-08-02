@@ -43,7 +43,7 @@ Class Sub
     {
         $pid = getmypid();
         file_put_contents(TMP_PATH . 'child_'. $num .'.pid', $pid);
-        $process->name("Child[{$num}] process in <". __ROOT__ .">");
+        $process->name("[". APP_NAME ."] Child[{$num}] process in <". __ROOT__ .">");
         echo "ChildID[{$num}] PID[". posix_getpid() ."] creation finish!" . PHP_EOL;
 
         //加载函数库

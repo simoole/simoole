@@ -56,6 +56,20 @@ Class User
         $this->route_path = $data['route_path'];
         $this->route_group = $data['route_group'];
 
+        //是否启用二进制通信
+        if(!empty($this->post) && Conf::tcp('is_binary')){
+            foreach($this->post as &$value){
+                //解码二进制
+                $arr = unpack('C*', $value);
+                //是否解密
+                if(Conf::tcp('is_encrypt')){
+                    $method = Conf::tcp('encrypt_func');
+                    $arr = $method($arr);
+                }
+                $value = decodeASCII($arr);
+            }
+        }
+
         $this->sess_conf = Conf::session();
         if($this->sess_conf['AUTO_START']){
             $sessid = null;

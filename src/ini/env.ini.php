@@ -35,6 +35,11 @@ define('MEMORY_WEBSOCKET_SET', 7); //记录websocket连接数据
 define('MEMORY_WEBSOCKET_DEL', 8); //删除websocket连接数据
 define('MEMORY_WEBSOCKET_HEART', 9); //获取指定websocket连接数据，心跳专用
 
+//插入数据库如何处理主键冲突
+define('DB_INSERT_CONFLICT_NONE', 0);
+define('DB_INSERT_CONFLICT_IGNORE', 1);
+define('DB_INSERT_CONFLICT_REPLACE', 2);
+
 //应用目录
 define('APP_PATH', __ROOT__ . __APP__ .'/');
 //应用公共文件目录

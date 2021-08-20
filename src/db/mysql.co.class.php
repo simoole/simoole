@@ -609,7 +609,7 @@ class mysqlCO
 	/**
 	 * 插入记录
 	 */
-	public function insert(array $datas = [], bool $return = false)
+	public function insert(array $datas = [], bool $return = false, int $conflice = DB_INSERT_CONFLICT_NONE)
 	{
 		$_datas = [];
 		foreach($this->fields as $key => $val){
@@ -626,7 +626,12 @@ class mysqlCO
 		$arr2 = array_values($datas);
 
 		//组装SQL语句
-		$this->sql = "Insert into `{$this->table}` {$this->asWord} (`". join('`, `', $arr1) ."`) values (". join(", ", array_fill(0, count($arr1), '?')) .");";
+        $sql = "Insert into ";
+        if($conflice === DB_INSERT_CONFLICT_IGNORE)
+            $sql = "Insert ignore into ";
+        if($conflice === DB_INSERT_CONFLICT_REPLACE)
+            $sql = "Replace into ";
+		$this->sql = "{$sql}`{$this->table}` {$this->asWord} (`". join('`, `', $arr1) ."`) values (". join(", ", array_fill(0, count($arr1), '?')) .");";
 		$this->params = $arr2;
 
 		$insert_id = 0;
@@ -643,10 +648,10 @@ class mysqlCO
     /**
      * 批量插入记录
      * @param array $dataAll 要插入的数据
-     * @param bool $is_return 是否返回成功插入的数据，默认只返回插入条数
+     * @param bool $return_data 是否返回成功插入的数据，默认只返回插入条数
      * @return false|int
      */
-    public function insertAll(array $data_all, bool $is_return = false)
+    public function insertAll(array $data_all, bool $return_data = false, int $conflice = DB_INSERT_CONFLICT_NONE)
     {
         $_datas = $arrKey = $arrVal = [];
         foreach($this->fields as $key => $val){
@@ -669,7 +674,12 @@ class mysqlCO
         }
         $total = count($arrVal);
 
-        $this->sql = "Insert into `{$this->table}` (`". join('`, `', $keys) ."`) values ";
+        $sql = "Insert into ";
+        if($conflice === DB_INSERT_CONFLICT_IGNORE)
+            $sql = "Insert ignore into ";
+        if($conflice === DB_INSERT_CONFLICT_REPLACE)
+            $sql = "Replace into ";
+        $this->sql = "{$sql}`{$this->table}` (`". join('`, `', $keys) ."`) values ";
         $sql_arr = $val_arr = [];
         foreach($arrVal as $vals){
             $sql_arr[] = "(". join(", ", array_fill(0, count($keys), '?')) .")";
@@ -682,16 +692,15 @@ class mysqlCO
         //执行
         $rs = $this->execute($this->sql, $insert_id);
         if(!$rs)return false;
-        if($is_return){
+        if($return_data){
             $first_id = $insert_id;
             $datas = [];
             foreach($_data_all as $row){
                 $datas[] = array_merge(['id' => $first_id ++], $row);
             }
         }
-        $this->link->commit();
         $this->_reset();
-        return $is_return ? $datas : $total;
+        return $return_data ? $datas : $total;
     }
 
 	/**
@@ -782,7 +791,7 @@ class mysqlCO
 	{
 		$this->field[] = "{$fun}({$field}) as num";
 		$rs = $this->getone();
-		return $rs['num'];
+		return $rs['num'] ?? null;
 	}
 
 	/**

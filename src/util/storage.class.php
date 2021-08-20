@@ -1,6 +1,7 @@
 <?php
 
 namespace Simoole\Util;
+use Simoole\Conf;
 
 class Storage
 {

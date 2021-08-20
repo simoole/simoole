@@ -235,23 +235,31 @@ Class Model {
      * 插入数据记录
      * @param array $datas 要插入的数据数组 ['字段' => '值',...]
      * @param bool $return 是否返回插入的ID
+     * @param int $conflict 如何处理主键冲突
+     *      DB_INSERT_CONFLICT_NONE-不处理
+     *      DB_INSERT_CONFLICT_IGNORE-忽略冲突
+     *      DB_INSERT_CONFLICT_REPLACE-覆盖冲突
      * @return array
      */
-    public function insert(array $datas = [], bool $return = false)
+    public function insert(array $datas = [], bool $return = false, int $conflict = DB_INSERT_CONFLICT_NONE)
     {
-        $rs = $this->db->insert($datas, $return);
+        $rs = $this->db->insert($datas, $return, $conflict);
         return $rs;
     }
 
     /**
      * 多条插入记录
      * @param array $dataAll 要插入的数据数组
-     * @param bool $is_return 是否返回插入后的数据，默认只返回插入的数量
-     * @return array
+     * @param bool $return_data 是否返回插入后的数据，默认只返回插入的数量
+     * @param int $conflict 如何处理主键冲突
+     *      DB_INSERT_CONFLICT_NONE-不处理
+     *      DB_INSERT_CONFLICT_IGNORE-忽略冲突
+     *      DB_INSERT_CONFLICT_REPLACE-覆盖冲突
+     * @return array|int
      */
-    public function insertAll(array $dataAll, bool $is_return = false)
+    public function insertAll(array $dataAll, bool $return_data = false, int $conflict = DB_INSERT_CONFLICT_NONE)
     {
-        $rs = $this->db->insertAll($dataAll, $is_return);
+        $rs = $this->db->insertAll($dataAll, $return_data, $conflict);
         return $rs;
     }
 

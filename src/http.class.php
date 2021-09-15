@@ -20,6 +20,7 @@ class Http
 
         //实例启动后执行
         $method = C('APP.after_start');
+
         if(!empty($method))$method();
     }
 
@@ -82,7 +83,7 @@ class Http
         if(empty($class_path)){
             trigger_error('路由['. ($data['server']['request_uri']??'/') .']匹配失败', E_USER_ERROR);
             $response->status(404);
-            $response->end('[SSF]404 Not Found!');
+            $response->end('[simoole]404 Not Found!');
             return;
         }
         $data['route_group'] = $group_name;
@@ -119,7 +120,7 @@ class Http
 
         if(!class_exists($class_name) || !method_exists($class_name, $action_name)){
             $response->status(404);
-            $response->end('[SSF]404 Not Found!');
+            $response->end('[simoole]404 Not Found!');
             return;
         }
 

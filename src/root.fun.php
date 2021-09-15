@@ -192,7 +192,7 @@ function M(string $tablename = null, string $dbname = null)
 function D(string $tablename, string $dbname = null)
 {
     if(empty($dbname)){
-        $dbname = 'DB_CONF';
+        $dbname = 'DEFAULT';
         if(\Simoole\Conf::database(U('dbname')))
             $dbname = U('dbname');
     }
@@ -368,13 +368,21 @@ function L($msg, $prefix = 'user', $dirname = null)
 
 /**
  * 实例化内存表
- * @param $tablename 要实例化的表名
+ * @param string $tablename 要实例化的表名
+ * @param bool $trigger_error 是否抛出错误
  * @return boolean|multitype
  */
-function T(string $tablename){
+function T(string $tablename, bool $trigger_error = true){
 	static $tables = [];
 	if(!isset($tables[$tablename])){
-		$tables[$tablename] = new \Simoole\Table($tablename);
+        $table = new \Simoole\Table();
+        if($table->getInstance($tablename))
+            $tables[$tablename] = $table;
+        else{
+            if($trigger_error)
+                trigger_error($tablename . '内存表不存在!', E_USER_WARNING);
+            return false;
+        }
 	}
 	return $tables[$tablename];
 }
@@ -404,7 +412,7 @@ function U(string $pname = null, $value = '[NULL]'){
  * @param array $params 实例化参数
  * @return \Simoole\Sub|mixed|null
  */
-function make(string $name, array $params = [])
+function make(string $name, ...$params)
 {
     if(class_exists($name)){
         $instance = (new ReflectionClass($name))->newInstanceArgs($params);
@@ -433,7 +441,7 @@ function make(string $name, array $params = [])
             };
         }else{
             trigger_error("[{$name}]子进程不存在");
-            return nulll;
+            return null;
         }
     }
     return $instance;

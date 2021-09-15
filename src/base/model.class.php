@@ -23,7 +23,7 @@ Class Model {
             //是否启用连接池
             if(!isset($conf['POOL']) || !$conf['POOL'])continue;
             $type = $conf['TYPE']?:'mysql';
-            $classname = "Db\\{$type}CO";
+            $classname = "\\Simoole\\Db\\{$type}CO";
             if(is_string($name))
                 $classname::_initialize($conf, $name);
             else
@@ -33,15 +33,14 @@ Class Model {
 
     public function __construct(string $dbname = null)
     {
-        $this->config = \Simoole\Conf::database($dbname?:'CONF');
+        $this->config = \Simoole\Conf::database($dbname ?: 'DEFAULT');
         if(empty($this->config) && !is_array($this->config)){
             trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
         }else{
             $this->dbname = isset($this->config['NAME']) ? $this->config['NAME'] : $dbname;
-            $dbname = $dbname ? : 'DEFAULT';
             $type = $this->config['TYPE']?:'mysql';
             $classname = "\\Simoole\\Db\\{$type}CO";
-            $this->db = new $classname($this->config, $dbname);
+            $this->db = new $classname($this->config, $dbname ?: 'DEFAULT');
         }
     }
 
@@ -271,6 +270,18 @@ Class Model {
     public function update(array $datas = [])
     {
         $rs = $this->db->update($datas);
+        return $rs;
+    }
+
+    /**
+     * 数据批量更新
+     * @param array $dataAll 要批量更新的数据数组 ['条件' => [name=>value, ...], ...]
+     * @param string $field 条件字段
+     * @return int
+     */
+    public function updateAll(array $dataAll = [], string $field = 'id')
+    {
+        $rs = $this->db->updateAll($dataAll, $field);
         return $rs;
     }
 

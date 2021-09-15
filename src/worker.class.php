@@ -23,7 +23,6 @@ Class Worker
      */
     static public function onstart(\swoole_server $server, int $worker_id)
     {
-        global $argv;
         //实例化进程对象
         Root::$worker = new self();
         file_put_contents(TMP_PATH . "worker_{$worker_id}.pid", $server->worker_pid);
@@ -52,9 +51,12 @@ Class Worker
     {
         $data = json_decode($message, true);
         $worker_num = Conf::swoole('worker_num');
-        if(isset($data['act']) && method_exists(Root::$worker, $data['act'])) {
+        if(isset($data['act'])) {
             $act = $data['act'];
-            Root::$worker->$act($data['data']);
+            if(method_exists(Root::$worker, $data['act'])){
+                if(empty($data['data'])) Root::$worker->$act();
+                else Root::$worker->$act($data['data']);
+            }
         }elseif(isset($data['data']) && isset($data['worker_id']) && $data['worker_id'] >= 0 && $data['worker_id'] < $worker_num + Sub::$count && isset($data['cid'])){
             if(isset($data['callback'])) {
                 if($data['callback'] == 2 && \Swoole\Coroutine::exists($data['cid'])){
@@ -73,15 +75,13 @@ Class Worker
                                 'worker_id' => $data['worker_id'],
                                 'callback' => 2
                             ]), $data['worker_id']);
-                        else{
-                            Sub::$procs[$data['worker_id'] - $worker_num]->write(json_encode([
+                        else
+                            Sub::socketSend($data['worker_id'] - $worker_num, [
                                 'data' => $res,
                                 'cid' => $data['cid'],
                                 'worker_id' => $data['worker_id'],
                                 'callback' => 2
-                            ]));
-                        }
-
+                            ]);
                     }
                     return true;
                 }
@@ -113,6 +113,19 @@ Class Worker
     }
 
     /**
+     * 获取工作进程内存占用大小
+     */
+    private function status()
+    {
+        make('__public')->putSize(Root::$worker->id, [
+            'pid' => Root::$serv->getWorkerPid(),
+            'status' => Root::$serv->getWorkerStatus(),
+            'real_usage' => memory_get_usage(true),
+            'usage' => memory_get_usage()
+        ]);
+    }
+
+    /**
      * 利用进程管道发送数据
      * @param string $act 方法名
      * @param array $data 带入参数
@@ -132,13 +145,16 @@ Class Worker
         $sum = Root::$serv->setting['worker_num'];
         if($worker_id > -1 && $worker_id < $sum){
             return Root::$serv->sendMessage($datas, $worker_id);
-        }
-        for($i = 0; $i < $sum; $i++){
-            if($i == $this->id){
-                $this->$act($data);
-                break;
+        }elseif($worker_id >= $sum){
+            return Sub::send($datas, $worker_id);
+        }else{
+            for($i = 0; $i < $sum; $i++){
+                if($i == $this->id){
+                    $this->$act($data);
+                    break;
+                }
+                Root::$serv->sendMessage($datas, $i);
             }
-            Root::$serv->sendMessage($datas, $i);
         }
         return true;
     }

@@ -39,4 +39,17 @@ class Proc
             ]), $i);
         }
     }
+
+    /**
+     * 向目标进程发送数据
+     * @param $worker_id 工作进程ID或子进程名称，默认发给系统自带的子进程
+     * @param $data 发送的数据
+     * @param bool $is_return 是否接收返回值(设置true后如果没有接收到返回值，会永远挂起当前协程)
+     * @return bool|mixed
+     */
+    protected function send($worker_id, $data, $is_return = false)
+    {
+        $res = \Simoole\Sub::send($data, $worker_id, $is_return);
+        return $res;
+    }
 }

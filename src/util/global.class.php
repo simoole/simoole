@@ -81,8 +81,8 @@ class Globals
         $sum = Conf::swoole('worker_num') + count(Sub::$procs);
         if($this->worker_id == null){
             for($worker_id = 0; $worker_id < $sum; $worker_id ++){
-                if(!Root::$worker->name && $worker_id == Root::$worker->id)continue;
-                if(Root::$worker->name && $worker_id == Root::$worker->id + Conf::swoole('worker_num'))continue;
+                if(!property_exists(Root::$worker, 'name') && $worker_id == Root::$worker->id)continue;
+                if(property_exists(Root::$worker, 'name') && $worker_id == Root::$worker->id + Conf::swoole('worker_num'))continue;
                 Sub::send([
                     'act' => 'setGlobals',
                     'data' => [

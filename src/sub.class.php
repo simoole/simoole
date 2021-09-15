@@ -22,6 +22,7 @@ Class Sub
                 'class_name' => '\Simoole\Util\Child' //子进程实例类名
             ]
         ], Conf::process());
+
         foreach (self::$conf as $name => $conf){
             for($n=0; $n<$conf['worker_num']; $n++){
                 self::$count ++;
@@ -53,21 +54,44 @@ Class Sub
         //初始化数据库连接池
         Base\Model::_initialize();
 
-        swoole_event_add($process->pipe, function($pipe) use ($process,$num){
-            $data = $process->read();
-            go(function() use ($data, $num){
-                self::onMessage($data, $num);
-            });
+        go(function() use ($process, $num){
+            static $data_packet = '';
+            static $after_id = null;
+            while(true){
+                $socket = $process->exportSocket();
+                $original_data = $socket->recv();
+                if($original_data && !empty($original_data)){
+                    $data = json_decode($original_data, true);
+                    if(json_last_error() !== JSON_ERROR_NONE){
+                        $data_packet .= $original_data;
+                        $data = json_decode($data_packet, true);
+                        if($after_id !== null)\Swoole\Timer::clear($after_id);
+                        $after_id = \Swoole\Timer::after(3000, function() use (&$data_packet, &$after_id){
+                            $data_packet = '';
+                            $after_id = null;
+                        });
+                        if(json_last_error() !== JSON_ERROR_NONE)continue;
+                        $data_packet = '';
+                        \Swoole\Timer::clear($after_id);
+                        $after_id = null;
+                    }
+                    go(function() use ($data, $num){
+                        self::onMessage($data, $num);
+                    });
+                }
+            }
         });
 
         $class_name = trim($conf['class_name'], '\\') . 'Proc';
         if(!class_exists($class_name) || !method_exists($class_name, 'onStart')){
             trigger_error($class_name . ' 不存在，子进程无法正常工作。');
         }else{
-            Root::$worker = new $class_name($process, $name, $num);
-            if(Root::$worker->onStart() === false){
-                trigger_error($class_name . '::onStart() 执行失败，子进程无法正常工作。');
-            }
+            Root::$serv->defer(function() use ($class_name, $process, $name, $num){
+                Root::$worker = new $class_name($process, $name, $num);
+                if(Root::$worker->onStart() === false){
+                    trigger_error($class_name . '::onStart() 执行失败，子进程无法正常工作。');
+                }
+            });
         }
     }
 
@@ -79,17 +103,16 @@ Class Sub
      */
     static public function onMessage($data, $worker_id)
     {
-        $data = json_decode($data, true);
-        if(json_last_error() !== JSON_ERROR_NONE || !isset($data['data']) || !isset($data['worker_id']) || $data['worker_id'] < 0 || $data['worker_id'] >= Conf::swoole('worker_num') + self::$count || !isset($data['cid']))return;
+        if(!isset($data['data']) || !isset($data['worker_id']) || $data['worker_id'] < 0 || $data['worker_id'] >= Conf::swoole('worker_num') + self::$count || !isset($data['cid']))return;
         //是否是发送回调
         if(isset($data['callback']) && $data['callback'] == 2 && \Swoole\Coroutine::exists($data['cid'])) {
             self::$contents[$data['cid']] = $data['data'];
             \Swoole\Coroutine::resume($data['cid']);
             unset(self::$contents[$data['cid']]);
         }else{
-            ob_start();
+            if(isset($data['callback']) && $data['callback'] == 1)ob_start();
             $_data = $data['data'];
-            $content = '';
+            $content = null;
             if(isset($_data['act']) && in_array($_data['act'], ['getGlobals','setGlobals','delGlobals'])) {
                 $actname = $_data['act'];
                 $content = self::$actname($_data['data']);
@@ -112,10 +135,10 @@ Class Sub
             }else{
                 $content = Root::$worker->onMessage($_data, $data['worker_id']);
             }
-            $_content = ob_get_clean();
-            if(empty($content) && !empty($_content))$content = $_content;
-            $content = $content ?: '';
+
             if(isset($data['callback']) && $data['callback'] == 1){
+                $_content = ob_get_clean();
+                if($content === null && !empty($_content))$content = $_content ?: '';
                 $worker_num = Conf::swoole('worker_num');
                 if($data['worker_id'] < $worker_num)
                     Root::$serv->sendMessage(json_encode([
@@ -124,13 +147,14 @@ Class Sub
                         'worker_id' => $worker_num + $worker_id,
                         'callback' => 2
                     ]), $data['worker_id']);
-                else
-                    self::$procs[$data['worker_id'] - $worker_num]->write(json_encode([
+                else{
+                    self::socketSend($data['worker_id'] - $worker_num, [
                         'data' => $content,
                         'cid' => $data['cid'],
                         'worker_id' => $worker_num + $worker_id,
                         'callback' => 2
-                    ]));
+                    ]);
+                }
             }
         }
         return true;
@@ -163,12 +187,12 @@ Class Sub
                     'callback' => $is_return ? 1 : 0
                 ]), $worker_id);
             }elseif($worker_id - $worker_num < self::$count){
-                self::$procs[$worker_id - $worker_num]->write(json_encode([
+                self::socketSend($worker_id - $worker_num, [
                     'data' => $data,
                     'cid' => $cid,
                     'worker_id' => $_worker_id,
                     'callback' => $is_return ? 1 : 0
-                ]));
+                ]);
             }else return false;
         }else{
             $conf = Conf::process((string)$worker_id);
@@ -181,12 +205,12 @@ Class Sub
                 $num += $_conf['worker_num'];
             }
             $num += $arr[(string)$worker_id]++;
-            self::$procs[$num]->write(json_encode([
+            self::socketSend($num, [
                 'data' => $data,
                 'cid' => $cid,
                 'worker_id' => $_worker_id,
                 'callback' => $is_return ? 1 : 0
-            ]));
+            ]);
         }
         if($is_return){
             //协程挂起等待返回值
@@ -194,6 +218,26 @@ Class Sub
             return self::$contents[$cid];
         }
         return true;
+    }
+
+    static public function socketSend(int $num, array $data)
+    {
+        $data = json_encode($data);
+        $socket = self::$procs[$num]->exportSocket();
+        if(strlen($data) > 65535){
+            $arr = str_split($data, 50000);
+            foreach($arr as $str){
+                $res = $socket->send($str);
+                if(!$res){
+                    trigger_error('进程通信失败，错误码：' . $socket->errCode, E_USER_ERROR);
+                }
+            }
+        }else{
+            $res = $socket->send($data);
+            if(!$res){
+                trigger_error('进程通信失败，错误码：' . $socket->errCode, E_USER_ERROR);
+            }
+        }
     }
 
     /**

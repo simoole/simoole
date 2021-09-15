@@ -70,7 +70,7 @@ class mysqlCO
             'user' => $config['USER'],
             'password' => $config['PASS'],
             'database' => $config['NAME'],
-            'timeout' => 300,
+            'timeout' => 600,
             'charset' => $config['CHARSET'],
             'strict_type' => false,
             'fetch_mode' => true
@@ -90,7 +90,7 @@ class mysqlCO
 		//获取数据库配置
 		$this->config = $config;
 		if(!empty($this->config)){
-            $this->dbname = $name;
+            $this->dbname = $config['NAME'];
             $uid = '__db' . getcid();
             //判断是否有配置连接池
             if(isset($config['POOL']) && $config['POOL']){
@@ -116,6 +116,12 @@ class mysqlCO
                 //判断连接是否还在，还在则复用
                 if(isset(self::$links[$uid]) && isset(self::$links[$uid][$name])) {
                     $this->link = self::$links[$uid][$name];
+                    //判断该连接是否可用，不可用则重连
+                    if(!$this->link || !$this->link->connected){
+                        $this->link = null;
+                        self::$links[$uid][$name] = null;
+                        $this->__construct($config, $name);
+                    }
                 }elseif($conn = self::_connect($config)){
                     //建立新的连接
                     $this->link = $conn;
@@ -492,7 +498,7 @@ class mysqlCO
         }
 
         //执行查询
-        if(!$rs->execute($this->params)){
+        if(!$rs->execute($this->params, 600)){
             trigger_error('数据执行失败！原因:['. $this->link->errno .']'. $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
             return false;
@@ -530,7 +536,7 @@ class mysqlCO
         }
 
         //执行查询
-        if (!$rs->execute($this->params)) {
+        if (!$rs->execute($this->params, 600)) {
             trigger_error('数据执行失败！原因:[' . $this->link->errno . ']' . $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
             return false;
@@ -666,23 +672,24 @@ class mysqlCO
         foreach($data_all as $datas){
             $this->_filter($datas);
             $datas = array_merge($_datas, $datas);
-            $keys = array_keys($datas);
-            if(empty($arrKey))$arrKey = $keys;
-            if($arrKey != $keys)continue;
-            $arrVal[] = array_values($datas);
+            if(empty($arrKey))$arrKey = array_keys($datas);
+            $vals = [];
+            foreach($arrKey as $key){
+                $vals[] = $datas[$key] ?? null;
+            }
+            $arrVal[] = $vals;
             $_data_all[] = $datas;
         }
-        $total = count($arrVal);
 
         $sql = "Insert into ";
         if($conflice === DB_INSERT_CONFLICT_IGNORE)
             $sql = "Insert ignore into ";
         if($conflice === DB_INSERT_CONFLICT_REPLACE)
             $sql = "Replace into ";
-        $this->sql = "{$sql}`{$this->table}` (`". join('`, `', $keys) ."`) values ";
+        $this->sql = "{$sql}`{$this->table}` (`". join('`, `', $arrKey) ."`) values ";
         $sql_arr = $val_arr = [];
         foreach($arrVal as $vals){
-            $sql_arr[] = "(". join(", ", array_fill(0, count($keys), '?')) .")";
+            $sql_arr[] = "(". join(", ", array_fill(0, count($arrKey), '?')) .")";
             $val_arr = array_merge($val_arr, $vals);
         }
         $this->sql .= join(',', $sql_arr) . ';';
@@ -691,7 +698,7 @@ class mysqlCO
         $insert_id = 0;
         //执行
         $rs = $this->execute($this->sql, $insert_id);
-        if(!$rs)return false;
+        if(!$rs)return $return_data ? [] : 0;
         if($return_data){
             $first_id = $insert_id;
             $datas = [];
@@ -700,30 +707,31 @@ class mysqlCO
             }
         }
         $this->_reset();
-        return $return_data ? $datas : $total;
+        return $return_data ? $datas : count($arrVal);
     }
 
 	/**
-	 * 更新数据
-	 * @param array $datas
-	 * @return mixed
-	 */
-	public function update(array $datas = [])
-	{
-		$_datas = [];
-		foreach($this->fields as $key => $val){
-			if($val !== null){
-				$_datas[$key] = $val;
+ * 更新数据
+ * @param array $datas
+ * @return mixed
+ */
+    public function update(array $datas = [])
+    {
+        $_datas = [];
+        foreach($this->fields as $key => $val){
+            if($val !== null){
+                $_datas[$key] = $val;
                 $this->fields[$key] = null;
-			}
-		}
-		//字段过滤
-		$this->_filter($datas);
-		$datas = array_merge($_datas, $datas);
-		//组装数据
-		$arr = [];
-		foreach($datas as $key => $val){
-			if(is_array($val)) {
+            }
+        }
+
+        //字段过滤
+        $this->_filter($datas);
+        $datas = array_merge($_datas, $datas);
+        //组装数据
+        $arr = [];
+        foreach($datas as $key => $val){
+            if(is_array($val)) {
                 list($k, $v) = $val;
                 switch (strtolower($k)) {
                     case '+':
@@ -746,19 +754,94 @@ class mysqlCO
                 }
             }elseif ($val === null){
                 $arr[] = "`{$key}`=null";
-			}else{
+            }else{
                 $val = addslashes($val);
-				$arr[] = "`{$key}`='{$val}'";
-			}
-		}
-		$where = '';
-		if(!empty($this->where))$where = ' where (' . join(') and (', $this->where) . ')';
-		//组装SQL语句
-		$this->sql = "Update `{$this->table}` {$this->asWord} set " . join(',', $arr) . $where;
-		$rs = $this->execute($this->sql);
-		$this->_reset();
-		return $rs;
-	}
+                $arr[] = "`{$key}`='{$val}'";
+            }
+        }
+        $where = '';
+        if(!empty($this->where))$where = ' where (' . join(') and (', $this->where) . ')';
+        //组装SQL语句
+        $this->sql = "Update `{$this->table}` {$this->asWord} set " . join(',', $arr) . $where;
+        $rs = $this->execute($this->sql);
+        $this->_reset();
+        return $rs;
+    }
+
+    /**
+     * 批量更新数据
+     * @param array $data_all 需要批量更新的数据 ['条件' => [name=>value, ...], ...]
+     * @param string $field 需要做条件判断的字段名
+     * @return int
+     */
+    public function updateAll(array $data_all, string $field = 'id')
+    {
+        if(!array_key_exists($field, $this->fields)){
+            trigger_error('条件字段['. $field .']不是有效字段名', E_USER_WARNING);
+            return 0;
+        }
+
+        $_datas = [];
+        foreach($this->fields as $key => $val){
+            if($val !== null){
+                $_datas[$key] = $val;
+                $this->fields[$key] = null;
+            }
+        }
+
+        //组装数据
+        $update_arr = [];
+        $count = 0;
+        foreach($data_all as $condition => $datas){
+            $this->_filter($datas);
+            $datas = array_merge($_datas, $datas);
+            if(empty($datas))continue;
+            //组装数据
+            foreach($datas as $key => $val){
+                if(is_array($val)) {
+                    list($k, $v) = $val;
+                    switch (strtolower($k)) {
+                        case '+':
+                        case 'inc':
+                            $update_arr[$key][] = "when '{$condition}' then `{$key}`+{$v}";
+                            break;
+                        case '-':
+                        case 'dec':
+                            $update_arr[$key][] = "when '{$condition}' then `{$key}`-{$v}";
+                            break;
+                        case '*':
+                            $update_arr[$key][] = "when '{$condition}' then `{$key}`*{$v}";
+                            break;
+                        case '/':
+                            $update_arr[$key][] = "when '{$condition}' then `{$key}`/{$v}";
+                            break;
+                        case 'exp':
+                            $update_arr[$key][] = "when '{$condition}' then {$v}";
+                            break;
+                    }
+                }elseif ($val === null){
+                    $update_arr[$key][] = "when '{$condition}' then null";
+                }else{
+                    $val = addslashes($val);
+                    $update_arr[$key][] = "when '{$condition}' then '{$val}'";
+                }
+            }
+            $count ++;
+        }
+
+        $arr = [];
+        foreach($update_arr as $key => $row){
+            $arr[] = "`{$key}`=case `{$field}` " . join(' ', $row) . " else `{$key}` end";
+        }
+
+        $where = '';
+        if(!empty($this->where))$where = ' where (' . join(') and (', $this->where) . ')';
+        //组装SQL语句
+        $this->sql = "Update `{$this->table}` {$this->asWord} set " . join(',', $arr) . $where;
+        $rs = $this->execute($this->sql);
+        $this->_reset();
+        return $rs ? $count : 0;
+    }
 
 	/**
 	 * 删除记录

@@ -21,7 +21,7 @@ Class Root
     //进程对象
     static public $worker = null;
 
-    //用户对象
+    //会话对象
     static public $user = [];
 
     //所有类库文件的地图
@@ -49,6 +49,7 @@ Class Root
     4. stop - 结束框架
     5. cleanup - 清空table内存表
     6. update - 更新框架版本
+    7. console - 进入框架控制台
 
 HELP;
     }
@@ -256,6 +257,36 @@ HELP;
                 echo 'Update Failed!' . PHP_EOL;
             }
         });
+    }
+
+    static public function console()
+    {
+        echo 'Please enter a command:' . PHP_EOL;
+        echo ' - Show [workers|process|mtables]' . PHP_EOL;
+        echo ' - Select [worker|process|mtable] [number|tablename]' . PHP_EOL;
+        self::loadFiles(CORE_PATH . 'conf.class.php');
+        self::loadFiles(CORE_PATH . 'console.class.php');
+        self::loadFiles(CORE_PATH . 'root.fun.php');
+        \Swoole\Coroutine::set(['hook_flags' => SWOOLE_HOOK_FILE]);
+        \Swoole\Coroutine\run(function(){
+            $console = new Console();
+            if(!$console->connect()) return;
+            $comstr = '';
+            while(true){
+                $pre = '<'.APP_NAME.'>';
+                if(empty($comstr))
+                    echo $pre . ' Console# ';
+                else
+                    echo $pre . ' Console:'. $comstr .'# ';
+                $result = trim(fgets(STDIN));
+                if(empty($result))continue;
+                if(in_array($result, ['quit', 'exit']))break;
+                $res = $console->handle($result, $comstr);
+                if(!$res)break;
+            }
+            fclose(STDIN);
+        });
+        echo 'Exit!' . PHP_EOL;
     }
 
     /**

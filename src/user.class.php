@@ -51,7 +51,7 @@ Class User
         $this->cookie = isset($data['cookie'])?$data['cookie']:[];
         $this->files = isset($data['files'])?$data['files']:[];
         $this->input = isset($data['input'])?$data['input']:'';
-        $this->request = array_merge($_GET, $_POST);
+        $this->request = array_merge($this->get, $this->post);
         $this->fd = isset($data['fd'])?$data['fd']:null;
         $this->route_path = $data['route_path'];
         $this->route_group = $data['route_group'];

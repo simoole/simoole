@@ -129,15 +129,16 @@ Class Table
      * 选择并使用某内存
      * @param $tablename 表名
      */
-    public function __construct(string $tablename)
+    public function getInstance(string $tablename)
     {
         if(isset(self::$table[$tablename])){
             $this->tablename = $tablename;
             $this->_table = self::$table[$tablename];
             $expire = Conf::mtable($tablename, '__expire');
             if(is_numeric($expire))$this->expire = $expire;
+            return true;
         }else{
-            trigger_error($tablename . '内存表不存在!', E_USER_WARNING);
+            return false;
         }
     }
 
@@ -147,7 +148,15 @@ Class Table
      */
     public function count()
     {
-        return count($this->_table);
+        return $this->_table->count();
+    }
+
+    /**
+     * 获取内存表内存占用量
+     */
+    public function memorySize()
+    {
+        return $this->_table->memorySize;
     }
 
     /**
@@ -229,6 +238,33 @@ Class Table
     public function last_id()
     {
         return $this->_table->_atomic->get();
+    }
+
+    /**
+     * 查找key
+     * @param string $search_str 待查找字符串
+     * @param bool $ignore_case 是否忽略大小写，默认false
+     * @return array
+     */
+    public function keys(string $search_str = '*', bool $ignore_case = false) : array
+    {
+        $data = [];
+        if($this->_table->count() > 0){
+            $search_preg = '';
+            if(strpos($search_str, '*') === false){
+                $search_preg = '/' . str_replace('*', '.+?', $search_str) . '/';
+                if($ignore_case)$search_preg .= 'i';
+            }
+            foreach($this->_table as $key => $row){
+                if($search_str == '*' || $key == $search_str)$data[] = $key;
+                elseif(empty($search_preg)){
+                    if($ignore_case && strtolower($key) == strtolower($search_str))$data[] = $key;
+                }elseif(preg_match($search_preg, $key)){
+                    $data[] = $key;
+                }
+            }
+        }
+        return $data;
     }
 
     /**

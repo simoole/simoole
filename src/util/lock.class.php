@@ -51,6 +51,7 @@ class Lock
                 return false;
             }
         }
+        return true;
     }
 
     /**

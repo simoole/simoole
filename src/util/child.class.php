@@ -47,6 +47,8 @@ class ChildProc extends Proc
                 ], $worker_id);
             }
         });
+
+        $this->consoleInit();
     }
 
     public function onMessage($data, int $worker_id)
@@ -91,4 +93,114 @@ class ChildProc extends Proc
                 return $data;
         }
     }
+
+    /**
+     * 控制台初始化
+     */
+    public function consoleInit()
+    {
+        $sock = new \Swoole\Coroutine\Socket(AF_UNIX, SOCK_STREAM, 0);
+        if(!$sock->bind(TMP_PATH . 'console.sock'))return;
+        if(!$sock->listen())return;
+        while(true) {
+            $client = $sock->accept();
+            if ($client) {
+                go(function() use ($client){
+                    while ($client->checkLiveness()){
+                        $data = $client->recv();
+                        $data = json_decode($data, true);
+                        if(json_last_error() === JSON_ERROR_NONE && method_exists($this, $data['act'])){
+                            $act = $data['act'];
+                            if(empty($data['data'])) $res = $this->$act();
+                            else $res = $this->$act($data['data']);
+                            if(isset($res)){
+                                if(is_array($res))$res = json_encode($res);
+                                $client->send((string)$res);
+                            }
+                        }
+                    }
+                    $client->close();
+                });
+            }
+        }
+    }
+
+    /**
+     * 获取所有工作进程的状态
+     */
+    private function getWorkerList()
+    {
+        $data = [];
+        for($i=0; $i<\Simoole\Root::$serv->setting['worker_num']; $i++){
+            $data[] = [
+                'pid' => file_get_contents(TMP_PATH . 'worker_' . $i . '.pid'),
+                'status' => \Simoole\Root::$serv->getWorkerStatus($i)
+            ];
+        }
+        return $data;
+    }
+
+    /**
+     * 获取所有子进程的状态
+     */
+    private function getProcessList()
+    {
+        $processes = array_merge([
+            '__public' => [
+                'worker_num' => 1, //子进程进程数量
+                'class_name' => '\Simoole\Util\Child' //子进程实例类名
+            ]
+        ], \Simoole\Conf::process());
+        $data = [];
+        $num = 0;
+        foreach($processes as $name => $conf){
+            for($i=0; $i<$conf['worker_num']; $i++){
+                $data[] = [
+                    'name' => $name,
+                    'path' => $conf['class_name'],
+                    'pid' => file_get_contents(TMP_PATH . 'child_' . $num . '.pid')
+                ];
+                $num ++;
+            }
+        }
+        return $data;
+    }
+
+    private function getTableList()
+    {
+        $tables = \Simoole\Conf::mtable();
+        $data = [];
+        foreach($tables as $name => $conf){
+            $table = T($name);
+            if(!$table)continue;
+            $keys = array_diff(array_keys($conf), ['__total', '__expire']);
+            $data[] = [
+                'name' => $name,
+                'count' => $table->count(),
+                'usage' => $table->memorySize(),
+                'columns' => $keys
+            ];
+        }
+        return $data;
+    }
+
+    private function handleMemTable(array $args)
+    {
+        $tablename = $args['name'];
+        $command = $args['command'];
+        $params = $args['params'] ?: [];
+
+        $table = T($tablename);
+        if(!$table)return $tablename . ' non-existent';
+        return $table->$command(...$params);
+    }
+
+//    private function handleWorker(array $args)
+//    {
+//        $worker_id = $args['worker_id'];
+//        $command = $args['command'];
+//        $params = $args['params'] ?: [];
+//
+//        $this->send();
+//    }
 }

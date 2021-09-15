@@ -115,7 +115,7 @@ abstract class Websocket
             Sub::send(['type' => MEMORY_WEBSOCKET_SET, 'fd' => $request->fd, 'data' => $data]);
             self::$fds[] = $request->fd;
 
-            $response->header('Server', 'SSF-websocket');
+            $response->header('Server', 'simoole-websocket');
             $response->header('Upgrade','websocket');
             $response->header('Connection','Upgrade');
             $websocketStr = $request->header['sec-websocket-key'].'258EAFA5-E914-47DA-95CA-C5AB0DC85B11';

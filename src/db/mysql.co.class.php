@@ -761,8 +761,9 @@ class mysqlCO
         }
         $where = '';
         if(!empty($this->where))$where = ' where (' . join(') and (', $this->where) . ')';
+        $limit = !empty($this->limit) ? " {$this->limit}" : '';
         //组装SQL语句
-        $this->sql = "Update `{$this->table}` {$this->asWord} set " . join(',', $arr) . $where;
+        $this->sql = "Update `{$this->table}` {$this->asWord} set " . join(',', $arr) . $where . $limit;
         $rs = $this->execute($this->sql);
         $this->_reset();
         return $rs;
@@ -854,10 +855,11 @@ class mysqlCO
 		$where = '';
 		if(!empty($this->where))$where = ' where (' . join(') and (', $this->where) . ')';
 		if(is_numeric($limit)){
-			$limit = is_numeric($length) ? "limit {$limit}, {$length}" : "limit {$limit}";
-			$this->sql = "Delete from `{$this->table}` {$this->asWord} " . $where . $limit;
-		}else
-			$this->sql = "Delete from `{$this->table}` {$this->asWord} " . $where;
+			$limit = is_numeric($length) ? " limit {$limit}, {$length}" : " limit {$limit}";
+		}else{
+            $limit = !empty($this->limit) ? " {$this->limit}" : '';
+        }
+        $this->sql = "Delete from `{$this->table}` {$this->asWord} " . $where . $limit;
 		//执行删除操作
 		$this->execute($this->sql);
 		$this->_reset();

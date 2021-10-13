@@ -23,10 +23,18 @@ Class Sub
             ]
         ], Conf::process());
 
-        foreach (self::$conf as $name => $conf){
-            for($n=0; $n<$conf['worker_num']; $n++){
-                self::$count ++;
+        foreach (self::$conf as &$conf){
+            if(is_string($conf)){
+                $conf = [
+                    'worker_num' => 1,
+                    'class_name' => $conf
+                ];
+            }elseif(!isset($conf['worker_num']) || $conf['worker_num'] < 1){
+                $conf['worker_num'] = 1;
+            }elseif($conf['worker_num'] > swoole_cpu_num()){
+                $conf['worker_num'] = swoole_cpu_num();
             }
+            self::$count += $conf['worker_num'];
         }
         foreach (self::$conf as $name => $conf){
             for($n=0; $n<$conf['worker_num']; $n++){

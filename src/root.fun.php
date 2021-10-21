@@ -417,7 +417,7 @@ function make(string $name, ...$params)
     if(class_exists($name)){
         $instance = (new ReflectionClass($name))->newInstanceArgs($params);
     }else{
-        if($conf = \Simoole\Conf::process($name)){
+        if($conf = \Simoole\Sub::$conf[$name]){
             return new class($name, $conf['class_name']){
 
                 private $process_name = null;
@@ -700,4 +700,34 @@ function encodeASCII(string $str): array
         $arr[] = $ud;
     }
     return $arr;
+}
+
+/**
+ * 将数组转的键值转换成由num和text组成的多维数组
+ * @param $array
+ * @return array|string
+ */
+function array_key_value($array)
+{
+    if(!is_array($array))return (string)$array;
+    $return_arr = [];
+    foreach($array as $key => $val){
+        if(is_array($val))
+            $return_arr[] = array_change_value($val);
+        elseif($val === null)
+            $return_arr[] = ['num'=>'', 'text'=>''];
+        else
+            $return_arr[] = ['num'=>(string)$key, 'text'=>(string)$val];
+    }
+    return $return_arr;
+}
+
+/**
+ * 隐藏手机号中间4位
+ * @param string $phone
+ * @return mixed
+ */
+function hidePhone(string $phone) : string
+{
+    return substr_replace($phone, '****', 3, 4);
 }

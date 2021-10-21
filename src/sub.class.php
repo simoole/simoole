@@ -7,7 +7,7 @@ namespace Simoole;
 
 Class Sub
 {
-    static Private $conf = [];
+    static public $conf = [];
     static public $count = 0;
     static public $procs = [];
     static public $contents = [];
@@ -36,10 +36,10 @@ Class Sub
             }
             self::$count += $conf['worker_num'];
         }
-        foreach (self::$conf as $name => $conf){
-            for($n=0; $n<$conf['worker_num']; $n++){
-                $process = new \Swoole\Process(function(\Swoole\Process $process) use ($num, $conf, $name){
-                    self::onStart($num, $process, $conf, $name);
+        foreach (self::$conf as $name => $_conf){
+            for($n=0; $n<$_conf['worker_num']; $n++){
+                $process = new \Swoole\Process(function(\Swoole\Process $process) use ($num, $_conf, $name){
+                    self::onStart($num, $process, $_conf, $name);
                 }, 0, 2, true);
                 Root::$serv->addProcess($process);
                 self::$procs[$num] = $process;
@@ -203,12 +203,12 @@ Class Sub
                 ]);
             }else return false;
         }else{
-            $conf = Conf::process((string)$worker_id);
+            $conf = self::$conf[(string)$worker_id];
             if(!$conf)return false;
             if(!isset($arr[(string)$worker_id])) $arr[(string)$worker_id] = 0;
             if($arr[(string)$worker_id] >= $conf['worker_num'])$arr[(string)$worker_id] = 0;
-            $num = 1;
-            foreach(Conf::process() as $name => $_conf){
+            $num = 0;
+            foreach(self::$conf as $name => $_conf){
                 if($name == $worker_id)break;
                 $num += $_conf['worker_num'];
             }

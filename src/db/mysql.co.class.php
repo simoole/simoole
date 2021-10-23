@@ -449,8 +449,11 @@ class mysqlCO
 					$data[] = "({$val[2]}({$tablename}.`{$key}`){$val[0]}'{$val[1]}')";
 			}
 		}
+        if(strpos($field, '(') === false){
+            $field = "{$tablename}.`{$field}`";
+        }
 		if(!empty($data))
-			$this->group = "group by {$tablename}.`{$field}` having " . join(' and ', $data);
+			$this->group = "group by  having " . join(' and ', $data);
 		else
 			$this->group = "group by {$tablename}.`{$field}`";
 	}

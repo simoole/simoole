@@ -721,13 +721,3 @@ function array_key_value($array)
     }
     return $return_arr;
 }
-
-/**
- * 隐藏手机号中间4位
- * @param string $phone
- * @return mixed
- */
-function hidePhone(string $phone) : string
-{
-    return substr_replace($phone, '****', 3, 4);
-}

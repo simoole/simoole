@@ -453,9 +453,9 @@ class mysqlCO
             $field = "{$tablename}.`{$field}`";
         }
 		if(!empty($data))
-			$this->group = "group by  having " . join(' and ', $data);
+			$this->group = "group by {$field} having " . join(' and ', $data);
 		else
-			$this->group = "group by {$tablename}.`{$field}`";
+			$this->group = "group by {$field}";
 	}
 
 	/**

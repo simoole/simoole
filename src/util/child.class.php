@@ -48,6 +48,9 @@ class ChildProc extends Proc
             }
         });
 
+        //定期清理仓库
+        Storage::cleanup();
+
         $this->consoleInit();
     }
 

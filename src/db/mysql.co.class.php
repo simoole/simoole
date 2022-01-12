@@ -132,14 +132,15 @@ class mysqlCO
                     }
                     //连接回收
                     \Swoole\Coroutine::defer(function() use ($uid, $name){
-                        unset(self::$links[$uid][$name]);
-                        if(empty(self::$links[$uid]))unset(self::$links[$uid]);
-                        $this->link = null;
-                        if(isset($this->runlogs) && !empty($this->runlogs)){
-                            $name = \Simoole\Root::$worker->name ?? 'worker';
-                            L($this->runlogs, $name, 'common');
-                            unset($this->runlogs);
-                            unset($this->runtime);
+                        if(isset(self::$links[$uid])){
+                            unset(self::$links[$uid]);
+                            $this->link = null;
+                            if(!empty($this->runlogs)){
+                                $name = \Simoole\Root::$worker->name ?? 'worker';
+                                L($this->runlogs, $name, 'common');
+                                $this->runlogs = '';
+                                $this->runtime = 0;
+                            }
                         }
                     });
                 }else

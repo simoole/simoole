@@ -586,8 +586,9 @@ function getRedis(string $name = 'DEFAULT')
         if(!empty($conf['AUTH'])){
             $instance[$name]->auth($conf['AUTH']);
         }
-        if(is_integer($conf['DB'])){
-            $instance[$name]->select($conf['DB']);
+        if(!$instance[$name]->select(intval($conf['DB']))){
+            trigger_error('Redis仓库切换失败', E_USER_ERROR);
+            return false;
         }
     }
     return $instance[$name];

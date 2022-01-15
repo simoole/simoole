@@ -29,7 +29,7 @@ class Conf
                         }
                     }
                 }
-            }else{
+            }elseif(empty($config[$name])){
                 trigger_error('系统配置['. $name .'.ini.php]没有找到');
                 return null;
             }

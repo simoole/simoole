@@ -202,10 +202,10 @@ class Storage
      */
     public function exist(string $name) : bool
     {
-        if($this->redis->hExists($this->_key, $this->key_prefix . $name)){
-            return true;
-        }else{
+        if($this->_get($name) === null){
             return false;
+        }else{
+            return true;
         }
     }
 

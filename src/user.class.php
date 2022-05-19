@@ -24,6 +24,7 @@ Class User
     public $cookie = [];
     public $files = [];
     public $input = '';
+    public $json = [];
     public $route_path = '';
     public $route_group = '';
 
@@ -55,20 +56,6 @@ Class User
         $this->fd = isset($data['fd'])?$data['fd']:null;
         $this->route_path = $data['route_path'];
         $this->route_group = $data['route_group'];
-
-        //是否启用二进制通信
-        if(!empty($this->post) && Conf::tcp('is_binary')){
-            foreach($this->post as &$value){
-                //解码二进制
-                $arr = unpack('C*', $value);
-                //是否解密
-                if(Conf::tcp('is_encrypt')){
-                    $method = Conf::tcp('encrypt_func');
-                    $arr = $method($arr);
-                }
-                $value = decodeASCII($arr);
-            }
-        }
 
         $this->sess_conf = Conf::session();
         if($this->sess_conf['AUTO_START']){
@@ -122,4 +109,42 @@ Class User
         L($this->running_time_log, $dirname, strtolower($this->route_group));
     }
 
+    /**
+     * 对输入数据进行处理
+     * @param bool $ob->is_binary 是否进行二进制解码
+     * @param bool $ob->is_encrypt 是否进行二进制解密
+     * @param callfunc $ob->_crypt 解码方法
+     */
+    public function handleData(object $ob) : void
+    {
+        //是否启用二进制通信
+        if($ob->is_binary){
+            if(!empty($this->input) && $ob->is_encrypt){
+                if(preg_match('/^[\d,]+$/', $this->input))
+                    $arr = explode(',', $this->input);
+                else
+                    $arr = unpack('C*', $this->input);
+                if(count($arr) > 0){
+                    $arr = array_values(array_filter($arr, function($num){
+                        return is_integer($num) && $num >= 0 && $num <= 255;
+                    }));
+                    if(count($arr) > 0){
+                        //解码二进制
+                        $arr = $ob->_crypt($arr);
+                        $this->input = decodeASCII($arr);
+                    }
+                }
+            }
+        }
+        if(!empty($this->input)){
+            $json = json_decode($this->input, true);
+            if(json_last_error() === JSON_ERROR_NONE){
+                $this->json = $json;
+                foreach($json as $name => $value){
+                    if(is_string($name))
+                        $this->post[$name] = is_array($value) ? json_encode($value) : $value;
+                }
+            }
+        }
+    }
 }

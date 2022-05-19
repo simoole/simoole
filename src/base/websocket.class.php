@@ -6,14 +6,36 @@
  */
 
 namespace Simoole\Base;
+use Simoole\Conf;
 
 class Websocket
 {
-    Protected $fd = null;
+    protected $fd = null;
+    //是否开启本次访问的二进制编码/解码
+    public ?bool $is_binary = null;
+    //是否开启本次访问的二进制加/解密（必须开启二进制编码）
+    public ?bool $is_encrypt = null;
+    //解密密钥
+    public ?string $_skey = null;
+
+    /**
+     * 加/解密方法
+     */
+    public function _crypt(array $data)
+    {
+        $method = Conf::tcp('encrypt_func');
+        return $method($data, $this->_skey);
+    }
 
     public function __construct()
     {
         $this->fd = U('fd');
+        if($this->is_binary === null)
+            $this->is_binary = Conf::tcp('is_binary');
+        if($this->is_encrypt === null)
+            $this->is_encrypt = Conf::tcp('is_encrypt');
+        if($this->_skey === null)
+            $this->_skey = Conf::tcp('secret_key');
     }
 
     public function _before_open()
@@ -87,7 +109,16 @@ class Websocket
         if(!$datas = $this->_before_push($data, $fd))return false;
         $data = array_change_value($datas[0]);
         $fd = $datas[1];
-        return \Swoole\Websocket::push($fd, $data);
+        if(!is_string($data))$data = json_encode($data);
+        //是否做二进制传输
+        if($this->is_binary){
+            $arr = encodeASCII($data);
+            if($this->is_encrypt){
+                $arr = $this->_crypt($arr);
+            }
+            array_unshift($arr, 'C*');
+            return \Swoole\Websocket::push($fd, call_user_func_array('pack', $arr), WEBSOCKET_OPCODE_BINARY);
+        }else return \Swoole\Websocket::push($fd, $data);
     }
 
     /**

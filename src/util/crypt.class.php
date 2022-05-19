@@ -69,16 +69,21 @@ class Crypt
     /**
      * 对aseii码数组进行二进制加密/解密
      * @param array $arr 要加密/解密的aseii数组
+     * @param string $key 加密密钥
      * @return array
      */
-    static public function bin(array $arr)
+    static public function bin(array $arr, string $key = null)
     {
+        $key = $key ?: \Simoole\Conf::tcp('secret_key');
+        if(empty($key)){
+            throw new \Exception('加密失败，缺少密钥');
+        }
         $k = 0;
         $bit = ceil(strlen(decbin($arr[0]))/8) * 8;
         $keys = [];
         $str = '';
-        foreach(str_split(\Simoole\Conf::tcp('secret_key')) as $v){
-            $str .= sprintf( "%08d", decbin(ord($v)));
+        foreach(str_split($key) as $v){
+            $str .= sprintf("%08d", decbin(ord($v)));
             if(strlen($str) == $bit){
                 $keys[] = bindec($str);
                 $str = '';

@@ -225,13 +225,12 @@ function I($name, $default = false)
 	$arr = explode('.', strtolower($name));
 	$_arr = explode('.', $name);
 	if(!$user = U())return $default;
-	if(in_array($arr[0], ['get','post','cookie','server','files','header','request','input'])){
+	if(in_array($arr[0], ['get','post','cookie','server','files','header','request','input','json'])){
 		$act = $arr[0];
-		$data = \Simoole\Root::$user[getcid()]->$act;
+		$data = $user->$act;
+        if($data === [] && $act != 'input')return $default;
+        if($data === '' && $act == 'input')return $default;
 		if(!empty($data) && is_string($data))return $data;
-		if(!is_array($data) || empty($data)){
-			return $default;
-		}
 		foreach($arr as $i => $ar){
 			if($i > 0 && !empty($ar)){
 				if(array_key_exists($ar, $data))
@@ -568,30 +567,35 @@ function checkPort($host, $port)
 function getRedis(string $name = 'DEFAULT')
 {
     static $instance = [];
-    if(!isset($instance[$name]) || !$instance[$name]->ping()){
+    $key = $name . '_' . getcid();
+    if(!isset($instance[$key]) || !$instance[$key]->ping()){
         $conf = \Simoole\Conf::redis($name);
         if(!$conf){
             trigger_error('没有找到指定的REDIS配置', E_USER_ERROR);
             return false;
         }
         if($conf['USE_COROUTINE']){
-            $instance[$name] = new \Swoole\Coroutine\Redis();
+            $instance[$key] = new \Swoole\Coroutine\Redis();
         }else{
-            $instance[$name] = new \Redis();
+            $instance[$key] = new \Redis();
         }
-        if(!$instance[$name]->connect($conf['HOST'], $conf['PORT'])){
+        if(!$instance[$key]->connect($conf['HOST'], $conf['PORT'])){
             trigger_error('Redis连接失败', E_USER_ERROR);
             return false;
         }
         if(!empty($conf['AUTH'])){
-            $instance[$name]->auth($conf['AUTH']);
+            $instance[$key]->auth($conf['AUTH']);
         }
-        if(!$instance[$name]->select(intval($conf['DB']))){
+        if(!$instance[$key]->select(intval($conf['DB']))){
             trigger_error('Redis仓库切换失败', E_USER_ERROR);
             return false;
         }
+        \Swoole\Coroutine::defer(function() use (&$instance, $key){
+            $instance[$key]->close();
+            unset($instance[$key]);
+        });
     }
-    return $instance[$name];
+    return $instance[$key];
 }
 
 /**

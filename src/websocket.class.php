@@ -149,35 +149,15 @@ abstract class Websocket
         Sub::send(['type' => MEMORY_WEBSOCKET_SET, 'fd' => $frame->fd, 'data' => ['last_receive_time' => time()]]);
 
         $frame_data = $frame->data;
-        //是否进行二进制转换
-        if(Conf::tcp('is_binary')){
-            if(strlen($frame_data) == 1){
-                $frame_arr = unpack('C', $frame_data);
-                $frame_data = $frame_arr[1];
-            }else{
-                $frame_arr = unpack('C*', $frame_data);
-                //是否解密
-                if(Conf::tcp('is_encrypt')){
-                    $method = Conf::tcp('encrypt_func');
-                    $frame_arr = $method($frame_arr);
-                }
-                $frame_data = decodeASCII($frame_arr);
-            }
-        }
 
-        if(strlen($frame_data) == 1){
-            if($frame_data == 1){
-                //收到手动心跳包，则将该数据包发送回去
-                if(Conf::websocket('heartbeat') == 2){
-                    if(Conf::tcp('is_binary'))
-                        $serv->push($frame->fd, pack('C', 2), WEBSOCKET_OPCODE_BINARY);
-                    else
-                        $serv->push($frame->fd, 2);
-                }
+        //判断是否开启了手动心跳检测
+        if(Conf::websocket('heartbeat') == 2 && strlen($frame_data) == 1){
+            $frame_arr = unpack('C', $frame_data);
+            if($frame_arr[1] == 1){
+                //收到手动心跳包，则立即反馈
+                $serv->push($frame->fd, pack('C', 2), WEBSOCKET_OPCODE_BINARY);
                 return;
-            }
-            if($frame_data == 2)return;
-            return;
+            }elseif($frame_arr[1] == 2) return;
         }
 
         $data = Sub::send(['type' => MEMORY_WEBSOCKET_GET, 'fd' => $frame->fd], null, true);
@@ -195,6 +175,15 @@ abstract class Websocket
 
         ob_start();
         $ob = new $class_name;
+        //是否进行二进制转换
+        if($ob->is_binary){
+            $frame_arr = unpack('C*', $frame_data);
+            //是否解密
+            if($ob->is_encrypt){
+                $frame_arr = $ob->_crypt($frame_arr);
+            }
+            $frame_data = decodeASCII($frame_arr);
+        }
         $_data = $frame_data;
         if(C('WEBSOCKET.data_type') == 'json'){
             $_data = json_decode($frame_data, true);
@@ -266,23 +255,14 @@ abstract class Websocket
      * @param int $opcode
      * @param bool $finish
      */
-    static public function push(int $fd, $data)
+    static public function push(int $fd, string $data, int $data_type = WEBSOCKET_OPCODE_TEXT)
     {
         //检测通道是否存在
         if(!Root::$serv->exist($fd) || !Root::$serv->isEstablished($fd)){
             trigger_error('通道['. $fd .']的客户端已经断开,无法发送消息!', E_USER_WARNING);
             return;
         }
-        if(!is_string($data))$data = json_encode($data);
-        if(Conf::tcp('is_binary')){
-            $arr = encodeASCII($data);
-            if(Conf::tcp('is_encrypt')){
-                $method = Conf::tcp('encrypt_func');
-                $arr = $method($arr);
-            }
-            array_unshift($arr, 'C*');
-            Root::$serv->push($fd, call_user_func_array('pack', $arr), WEBSOCKET_OPCODE_BINARY);
-        }else Root::$serv->push($fd, $data, WEBSOCKET_OPCODE_TEXT);
+        Root::$serv->push($fd, $data, $data_type);
     }
 
     /**
@@ -303,12 +283,12 @@ abstract class Websocket
                 }
             });
         }elseif(Conf::websocket('heartbeat') == 2){
-            \Swoole\Timer::tick(1000, function() {
+            $ping = pack('C', 1);
+            \Swoole\Timer::tick(1000, function() use ($ping) {
                 static $loop = [];
                 static $fail = [];
                 if(empty(self::$fds))return;
                 $conf = Conf::websocket();
-                $is_binary = Conf::tcp('is_binary');
                 $data = Sub::send(['type' => MEMORY_WEBSOCKET_HEART], null, true);
                 foreach($data as $fd => $last_time){
                     if (!Root::$serv->exist($fd) || !Root::$serv->isEstablished($fd)){
@@ -323,10 +303,7 @@ abstract class Websocket
                     $loop[$fd] ++;
                     if ($loop[$fd] >= $conf['heartbeat_check_interval']) {
                         if (time() - $last_time > $conf['heartbeat_check_interval']) {
-                            if($is_binary)
-                                Root::$serv->push($fd, pack('C', 1), WEBSOCKET_OPCODE_BINARY);
-                            else
-                                Root::$serv->push($fd, 1);
+                            Root::$serv->push($fd, $ping, WEBSOCKET_OPCODE_BINARY);
                             $fail[$fd]++;
                         } else {
                             $loop[$fd] = 0;

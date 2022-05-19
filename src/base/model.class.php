@@ -218,6 +218,7 @@ Class Model {
             }
         }else{
             $rs = $this->db->select(false);
+            if(empty($rs))return [];
             $data = [];
             foreach($rs as $row){
                 if(isset($row[$name])){

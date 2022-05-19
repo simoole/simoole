@@ -72,6 +72,7 @@ class Http
             'class_name' => '',
             'action_name' => ''
         ];
+
         $host = '';
         if(isset($request->header['host']))$host = $request->header['host'];
         if(isset($request->header['http_host']))$host = $request->header['http_host'];
@@ -128,7 +129,9 @@ class Http
         ob_start();
         //实例化控制器
         $ob = new $class_name;
-
+        //处理输入数据
+        U()->handleData($ob);
+        //判断是否开启自动try...catch，并进行对应处理
         if(Conf::app('auto_try')){
             try{
                 $content = self::exec($ob, $action_name);
@@ -141,9 +144,24 @@ class Http
 
         //获取缓冲池的输出内容
         if(empty($content) || $content === false || $content === true)$content = ob_get_clean();
+        if(is_numeric($content))$content = strval($content);
+        if(is_bool($content))$content = $content ? 'true' : 'false';
 
         //记录会话
         U()->save();
+
+        //是否做二进制传输
+        if($ob->is_binary){
+            $response->header('Content-Type', 'application/octet-stream');
+            $response->header('Content-Transfer-Encoding', 'binary');
+            if(!is_string($content))$content = json_encode($content);
+            $arr = encodeASCII($content);
+            if($ob->is_encrypt){
+                $arr = $ob->_crypt($arr);
+            }
+            array_unshift($arr, 'C*');
+            $content = call_user_func_array('pack', $arr);
+        }
 
         //最终输出
         $response->end($content);

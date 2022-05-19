@@ -10,6 +10,32 @@ use Simoole\Conf;
 
 Class Controller
 {
+    //是否开启本次访问的二进制编码/解码
+    public $is_binary = null;
+    //是否开启本次访问的二进制加/解密（必须开启二进制编码）
+    public $is_encrypt = null;
+    //解密密钥
+    public $_skey = null;
+
+    /**
+     * 加/解密方法
+     */
+    public function _crypt(array $data)
+    {
+        $method = Conf::tcp('encrypt_func');
+        return $method($data, $this->_skey);
+    }
+
+    public function __construct()
+    {
+        if($this->is_binary === null)
+            $this->is_binary = Conf::tcp('is_binary');
+        if($this->is_encrypt === null)
+            $this->is_encrypt = Conf::tcp('is_encrypt');
+        if($this->_skey === null)
+            $this->_skey = Conf::tcp('secret_key');
+    }
+
     /**
      * JSON数据输出
      * @param $data 要输出的数据
@@ -20,21 +46,9 @@ Class Controller
         if(!is_array($data))$data = [$data];
         $data = array_change_value($data);
         //是否启用二进制通信
-        if(Conf::tcp('is_binary')){
-            $this->header('Content-Type', 'application/octet-stream');
-            $this->header('Content-Transfer-Encoding', 'binary');
-            $arr = encodeASCII(json_encode($data));
-            if(Conf::tcp('is_encrypt')){
-                $method = C('TCP.encrypt_func');
-                $arr = $method($arr);
-            }
-            array_unshift($arr, 'C*');
-            $this->write(call_user_func_array('pack', $arr));
-        }else{
-            $this->header('Content-Type', 'application/json');
-            $this->header('charset', 'utf-8');
-            echo json_encode($data);
-        }
+        $this->header('Content-Type', 'application/json');
+        $this->header('charset', 'utf-8');
+        echo json_encode($data);
         return true;
     }
 

@@ -60,8 +60,7 @@ abstract class Websocket
         [$class_path, $route_path, $group_name] = Route::getPath($data['header']['http_host']??'', $data['server']['request_uri']??'/');
 
         if(empty($class_path)){
-            trigger_error('路由['. ($data['server']['request_uri']??'/') .']匹配失败', E_USER_ERROR);
-            return false;
+            throw new \Exception('路由['. ($data['server']['request_uri']??'/') .']匹配失败', 10116);
         }
         $data['route_group'] = $group_name;
         $data['route_path'] = $route_path;

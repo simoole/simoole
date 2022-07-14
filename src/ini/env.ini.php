@@ -4,7 +4,7 @@
  */
 
 //CLI命令
-$comms = ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup', 'console'];
+$comms = ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup', 'console', 'build'];
 $cli_command = strpos($argv[0], 'simoole') !== false ? ($argv[1] ?? $comms[0]) : $argv[2];
 if($pos = strpos($cli_command, ':')){
     define('CLI_COMMAND_VERSION', substr($cli_command, $pos + 1));
@@ -34,6 +34,8 @@ define('MEMORY_WEBSOCKET_GET', 6); //获取websocket连接数据
 define('MEMORY_WEBSOCKET_SET', 7); //记录websocket连接数据
 define('MEMORY_WEBSOCKET_DEL', 8); //删除websocket连接数据
 define('MEMORY_WEBSOCKET_HEART', 9); //获取指定websocket连接数据，心跳专用
+
+define('MEMORY_STORAGE', 10); //内存表设置（用于子进程定时清理内存表）
 
 //插入数据库如何处理主键冲突
 define('DB_INSERT_CONFLICT_NONE', 0);

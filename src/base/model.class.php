@@ -35,7 +35,7 @@ Class Model {
     {
         $this->config = \Simoole\Conf::database($dbname ?: 'DEFAULT');
         if(empty($this->config) && !is_array($this->config)){
-            trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
+            throw new \Exception('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', 10001);
         }else{
             $this->dbname = isset($this->config['NAME']) ? $this->config['NAME'] : $dbname;
             $type = $this->config['TYPE']?:'mysql';
@@ -168,29 +168,23 @@ Class Model {
 
     /**
      * 查询记录集
-     * @param  int $islock 是否上锁 0-不上锁 1-上锁
+     * @param  int $islock 是否上锁 0-不上锁 1-上排他锁(for update) 2-上共享锁(lock in share mode)
      * @return array 结果集数组
      */
     public function select(int $islock = 0)
     {
-        if($islock)
-            $rs = $this->db->select(true);
-        else
-            $rs = $this->db->select();
+        $rs = $this->db->select($islock);
         return $rs;
     }
 
     /**
      * 查询单条记录
-     * @param int $islock 是否上锁 0-不上锁 1-上锁
+     * @param int $islock 是否上锁 0-不上锁 1-上排他锁(for update) 2-上共享锁(lock in share mode)
      * @return array 结果集数组
      */
     public function getone(int $islock = 0)
     {
-        if($islock)
-            $rs = $this->db->getone(true);
-        else
-            $rs = $this->db->getone();
+        $rs = $this->db->getone($islock);
         return $rs;
     }
 

@@ -180,7 +180,7 @@ HELP;
             \Swoole\Process::kill($pid, SIGUSR1);
             $childs = glob(TMP_PATH . 'child_*.pid');
             foreach($childs as $child){
-                if(strpos($child, 'child_0.pid') !== false)continue;
+                if(str_contains($child, 'child_0.pid'))continue;
                 $_pid = @file_get_contents($child);
                 if(\Swoole\Process::kill($_pid, 0))\Swoole\Process::kill($_pid, SIGTERM);
             }
@@ -290,6 +290,67 @@ HELP;
     }
 
     /**
+     * 将业务代码打包成二进制文件
+     * @return void
+     */
+    static public function build()
+    {
+        define('BUILD_PATH', __ROOT__ .'build/');
+        self::loadFiles(CORE_PATH . 'root' . FUN_EXT);
+        $code_key = env('APP_CODE_KEY');
+        if(!empty($code_key)) self::loadFiles(CORE_PATH . 'util/crypt' . CLS_EXT);
+        //删除build目录
+        if(is_dir(BUILD_PATH))delDir(BUILD_PATH);
+        $build = function(string $path = APP_PATH) use (&$build, $code_key){
+            $funs = $classes = $others = [];
+            foreach(scandir($path) as $file){
+                if(in_array($file, ['.', '..']))continue;
+                $filepath = $path . $file;
+                if(is_dir($filepath)){
+                    $arr = $build($filepath . '/');
+                    $funs = array_merge($funs, $arr[0]);
+                    $classes = array_merge($classes, $arr[1]);
+                    $others = array_merge($others, $arr[2]);
+                }else{
+                    $code = php_strip_whitespace($filepath);
+                    $code = str_replace("\r\n", '', $code); //清除换行符
+                    $code = str_replace("\n", '', $code); //清除换行符
+                    $code = str_replace("\t", '', $code); //清除制表符
+                    $pattern = ["/> *([^ ]*) *</","/[\s]+/","/<!--[^!]*-->/","/\" /","/ \"/","'/\*[^*]*\*/'"];
+                    $replace = [">\\1<"," ","","\"","\"",""];
+                    $code = preg_replace($pattern, $replace, $code);
+                    $arr = encodeASCII($code);
+                    if(!empty($code_key)){
+                        $arr = Util\Crypt::bin($arr, $code_key);
+                    }
+                    array_unshift($arr, 'C*');
+                    $code = call_user_func_array('pack', $arr);
+                    if(str_contains($file, FUN_EXT))$funs[$filepath] = $code;
+                    elseif(str_contains($file, CLS_EXT))$classes[$filepath] = $code;
+                    else $others[$filepath] = $code;
+                    echo "[{$filepath}] Read successfully." . PHP_EOL;
+                }
+            }
+            return [$funs, $classes, $others];
+        };
+        [$funs, $classes, $others] = $build();
+        mkdir(BUILD_PATH);
+        foreach ($funs as $path => $code) {
+            file_put_contents(BUILD_PATH . 'fun_' . md5($path), $code);
+            echo "[{$path}] Packaging completed." . PHP_EOL;
+        }
+        foreach ($classes as $path => $code) {
+            file_put_contents(BUILD_PATH . 'cls_' . md5($path), $code);
+            echo "[{$path}] Packaging completed." . PHP_EOL;
+        }
+        foreach ($others as $path => $code) {
+            file_put_contents(BUILD_PATH . 'otr_' . md5($path), $code);
+            echo "[{$path}] Packaging completed." . PHP_EOL;
+        }
+        echo "Successfully! Building all completed." . PHP_EOL;
+    }
+
+    /**
      * 加载文件
      * @param string $filepath 文件路径
      * @param boolean $return 是否获取返回值
@@ -297,7 +358,7 @@ HELP;
     static public function loadFiles(string $filepath, $return = false)
     {
         if(!is_file($filepath)){
-            trigger_error($filepath . " does not exist!", E_USER_WARNING);
+            throw new \Exception($filepath . " does not exist!", 10111);
         }
         if($return === true)
             return require $filepath;
@@ -316,23 +377,35 @@ HELP;
         $dir = rtrim($dir, '/');
         $files = scandir($dir);
         $files = array_diff($files, ['.', '..']);
+        $code_key = getenv('APP_CODE_KEY');
         $dirs = [];
         foreach ($files as $file) {
             $path = $dir . '/' . $file;
             if (is_dir($path)) {
                 $dirs[] = $path;
-            } elseif (strpos($file, CLS_EXT) > 0) {
+            } elseif (str_contains($file, CLS_EXT) || str_contains($file, 'cls_')) {
                 foreach (self::$map as $m) {
-                    if ($m['path'] == $path) continue 2;
+                    if ($m['path'] == $path || 'cls_' . md5($m['path']) == $file) continue 2;
                 }
-                self::loadFiles($path);
+                if (str_contains($file, CLS_EXT)) {
+                    self::loadFiles($path);
+                } elseif(str_contains($file, 'cls_')) {
+                    if(!empty($code_key)){
+                        $arr = unpack('C*', file_get_contents($path));
+                        if(count($arr) > 0){
+                            $arr = Util\Crypt::bin($arr, $code_key);
+                            eval('?>' . decodeASCII($arr));
+                        }
+                    }else self::loadFiles($path);
+                }
+
                 foreach (get_declared_classes() as $classname) {
                     $classname = "\\" . str_replace("\\\\", "\\", $classname);
                     if (!isset(self::$map[$classname]) && !empty(trim($classname, '\\'))) {
                         $ref = new \ReflectionClass($classname);
-                        if($ref->getFileName() == $path){
+                        if($ref->getFileName() == $path || str_contains($ref->getFileName(), md5($path))){
                             self::$map[$classname] = [
-                                'path' => $ref->getFileName(),
+                                'path' => $path,
                                 'classname' => $ref->getShortName(),
                                 'vars' => array_column(json_decode(json_encode($ref->getProperties()),true), 'name'),
                                 'methods' => array_column(json_decode(json_encode($ref->getMethods()),true), 'name')
@@ -354,21 +427,34 @@ HELP;
     {
         $map_type = Conf::map('TYPE');
         $map_list = Conf::map('LIST');
+        $code_key = env('APP_CODE_KEY');
         //加载类库表
         if($map_type > 0){
+            $_files = array_values(array_filter(scandir(APP_PATH), function($val){
+                return str_contains($val, 'cls_');
+            }));
             foreach($map_list as $path){
                 $path = APP_PATH . $path;
                 foreach(self::$map as $m){
                     if($m['path'] == $path)continue 2;
                 }
-                self::loadFiles($path);
+                if(!empty($_files) && ($index = array_search('cls_' . md5($path), $_files)) !== false) {
+                    if(!empty($code_key)){
+                        $arr = unpack('C*', file_get_contents($path));
+                        if(count($arr) > 0){
+                            //解码二进制
+                            $arr = Util\Crypt::bin($arr, $code_key);
+                            eval('?>' . decodeASCII($arr));
+                        }
+                    }else self::loadFiles(APP_PATH . $_files[$index]);
+                }else self::loadFiles($path);
                 foreach(get_declared_classes() as $classname){
                     $classname = "\\" . str_replace("\\\\", "\\", $classname);
                     if (!isset(self::$map[$classname]) && !empty(trim($classname, '\\'))) {
                         $ref = new \ReflectionClass($classname);
-                        if($ref->getFileName() == $path){
+                        if($ref->getFileName() == $path || str_contains($ref->getFileName(), md5($path))){
                             self::$map[$classname] = [
-                                'path' => $ref->getFileName(),
+                                'path' => $path,
                                 'classname' => $ref->getShortName(),
                                 'vars' => array_column(json_decode(json_encode($ref->getProperties()),true), 'name'),
                                 'methods' => array_column(json_decode(json_encode($ref->getMethods()),true), 'name')
@@ -392,13 +478,23 @@ HELP;
         $dir = rtrim($dir, '/');
         $files = scandir($dir);
         $files = array_diff($files, ['.', '..']);
+        $code_key = getenv('APP_CODE_KEY');
         foreach($files as $file){
             $path = $dir . '/' . $file;
             if(is_dir($path)){
                 self::loadFunc($path);
-            }elseif(strpos($file, FUN_EXT) > 0){
+            }elseif(str_contains($file, FUN_EXT)){
                 //加载函数库
                 self::loadFiles($path);
+            }elseif(str_contains($file, 'fun_')){
+                if(!empty($code_key)){
+                    $arr = unpack('C*', file_get_contents($path));
+                    if(count($arr) > 0){
+                        //解码二进制
+                        $arr = Util\Crypt::bin($arr, $code_key);
+                        eval('?>' . decodeASCII($arr));
+                    }
+                }else self::loadFiles($path);
             }
         }
     }

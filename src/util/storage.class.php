@@ -5,39 +5,8 @@ use Simoole\Conf;
 
 class Storage
 {
-    /**
-     * 清理过期缓存
-     */
-    static public function cleanup()
-    {
-        $conf = Conf::storage();
-        \Swoole\Timer::tick($conf['CLEANUP'] * 1000, function() use ($conf){
-            $redis = getRedis();
-            $time = time();
-            $list_key = $conf['PREFIX'] . '_key';
-            $count = $redis->llen($list_key);
-            for($i = 0; $i < $count; $i ++){
-                $_key = $redis->rPop($list_key);
-                $key = $conf['PREFIX'] . $_key;
-                $data = $redis->hGetAll($key);
-                if(empty($data)){
-                    //删除空仓库
-                    $redis->del($key);
-                }else{
-                    foreach($data as $k => $v){
-                        if(!isset($v['expire']) || $v['expire'] < $time){
-                            //删除过期仓库数据
-                            $redis->hDel($key, $k);
-                        }
-                    }
-                    $redis->lPush($list_key, $_key);
-                }
-            }
-        });
-    }
-
     private $_key = null;
-    private $redis = null;
+    private $drive = null;
     private $expire = 0;
     private $key_prefix = null;
     private $_data = [];
@@ -45,9 +14,27 @@ class Storage
     public function __construct(string $key, ?int $expire = null)
     {
         $conf = Conf::storage();
+        if(!$conf['ENABLE']){
+            throw new \Exception('数据仓库未启用！');
+        }
         $this->_key = $conf['PREFIX'] . $key;
         $this->key_prefix = $conf['KEY_PREFIX'];
-        $this->redis = getRedis();
+        if($conf['DRIVE'] == 'redis'){
+            $this->drive = getRedis();
+        }else{
+            $this->drive = new class(){
+                public function __call($name, $params)
+                {
+                    unset($params[0]);
+                    return \Simoole\Sub::send([
+                        'type' => MEMORY_STORAGE,
+                        'key' => $this->_key,
+                        'params' => !empty($params) ? array_values($params) : [],
+                        'name' => lcfirst(substr($name, 1))
+                    ], null, true);
+                }
+            };
+        }
         $this->expire = $expire ?? $conf['EXPIRE'];
         if($this->expire == 0)$this->expire = 3600 * 24;
     }
@@ -58,12 +45,12 @@ class Storage
     private function _get(string $name) : mixed
     {
         $name = $this->key_prefix . $name;
-        $res = $this->redis->hGet($this->_key, $name);
+        $res = $this->drive->hGet($this->_key, $name);
         if(!$res)return null;
         $json = json_decode($res, true);
         $time = time();
         if(json_last_error() !== JSON_ERROR_NONE || !isset($json['expire']) || $json['expire'] < $time){
-            $this->redis->hDel($this->_key, $name);
+            $this->drive->hDel($this->_key, $name);
             return null;
         }
         if($this->expire < $time)$json['expire'] = $this->expire + $time;
@@ -79,8 +66,8 @@ class Storage
      */
     private function _set(string $name, mixed $value) : void
     {
-        if(!$this->redis->exists($this->_key))
-            $this->redis->lPush(Conf::storage('PREFIX') . '_key', $this->_key);
+        if(!$this->drive->exists($this->_key) && Conf::storage('DRIVE') == 'redis')
+            $this->drive->lPush(Conf::storage('PREFIX') . '_key', $this->_key);
         $type = null;
         if(is_string($value))$type = 'string';
         if(is_bool($value))$type = 'boolean';
@@ -95,7 +82,7 @@ class Storage
             throw new \Exception('Storage不支持该类型');
         }
         $name = $this->key_prefix . $name;
-        $this->redis->hSet($this->_key, $name, json_encode([
+        $this->drive->hSet($this->_key, $name, json_encode([
             'type' => $type,
             'data' => $value,
             'expire' => $this->expire + time()
@@ -130,7 +117,7 @@ class Storage
      */
     public function keys(string $search_string = null)
     {
-        $datas = $this->redis->hKeys($this->_key);
+        $datas = $this->drive->hKeys($this->_key);
         if(!$datas)return [];
         $keys = [];
         foreach($datas as $name){
@@ -215,7 +202,7 @@ class Storage
      */
     public function count() : int
     {
-        return $this->redis->hLen($this->_key) ?: 0;
+        return $this->drive->hLen($this->_key) ?: 0;
     }
 
     /**
@@ -237,13 +224,13 @@ class Storage
      */
     public function mget()
     {
-        $data = $this->redis->hGetAll($this->_key) ?: [];
+        $data = $this->drive->hGetAll($this->_key) ?: [];
         $_data = [];
         foreach($data as $k => $v){
             $key = substr($k, strlen($this->key_prefix));
             $json = json_decode($v, true);
             if(json_last_error() !== JSON_ERROR_NONE || !isset($json['expire']) || $json['expire'] < $time){
-                $this->redis->hDel($this->_key, $k);
+                $this->drive->hDel($this->_key, $k);
                 continue;
             }
             if($json['type'] == 'object') $_data[$key] = unserialize($json['data']);
@@ -271,7 +258,8 @@ class Storage
      */
     public function remove(string $name = null)
     {
-        if($name === null)return $this->redis->del($this->_key);
-        else return $this->redis->hDel($this->_key, $this->key_prefix . $name);
+        if($name === null)return $this->drive->del($this->_key);
+        else return $this->drive->hDel($this->_key, $this->key_prefix . $name);
     }
 }
+

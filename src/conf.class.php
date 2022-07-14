@@ -30,7 +30,7 @@ class Conf
                     }
                 }
             }elseif(empty($config[$name])){
-                trigger_error('系统配置['. $name .'.ini.php]没有找到');
+                throw new \Exception('系统配置['. $name .'.ini.php]没有找到', 10101);
                 return null;
             }
             if(!empty($_config)){

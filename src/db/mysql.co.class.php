@@ -76,8 +76,7 @@ class mysqlCO
             'fetch_mode' => true
         ]);
         if(!$rs){
-            trigger_error('数据库连接失败！原因:['. $conn->connect_errno .']'. $conn->connect_error, E_USER_WARNING);
-            return false;
+            throw new \Exception('数据库连接失败！原因:['. $conn->connect_errno .']'. $conn->connect_error, 10001);
         }
         return $conn;
     }
@@ -100,8 +99,7 @@ class mysqlCO
                     if($conn = self::_connect($config)){
                         self::$links[$name]->push($conn);
                     }else{
-                        trigger_error('数据库连接异常，请检查config文件夹下的database.ini.php文件配置！', E_USER_WARNING);
-                        return;
+                        throw new \Exception('数据库连接异常，请检查config文件夹下的database.ini.php文件配置！', 10002);
                     }
                 }
                 //从连接池中取出一个连接
@@ -143,12 +141,11 @@ class mysqlCO
                             }
                         }
                     });
-                }else
-                    trigger_error('数据库连接异常，请检查config文件夹下的database.ini.php文件配置！', E_USER_WARNING);
+                }else throw new \Exception('数据库连接异常，请检查config文件夹下的database.ini.php文件配置！', 10003);
             }
 		}else{
 		    $this->link = null;
-            trigger_error('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', E_USER_WARNING);
+            throw new \Exception('您的数据库信息尚未配置, 请在config文件夹下的database.ini.php中配置好您的数据库信息！', 10002);
         }
 	}
 
@@ -175,8 +172,7 @@ class mysqlCO
         }
         $rs = $this->query("SHOW COLUMNS FROM `{$table}`");
         if(!$rs){
-            trigger_error('数据表['. $datatable .']不存在！', E_USER_WARNING);
-            return false;
+            throw new \Exception('数据表['. $datatable .']不存在！', 10004);
         }
         $data = [];
         while($row = $rs->fetch()) {
@@ -205,7 +201,7 @@ class mysqlCO
 		foreach($this->fields as $key => &$val){
 			if($key == $name)return $val = $value;
 		}
-		trigger_error("在数据表 {$this->dbname}.{$this->table} 中没有字段 {$name}", E_USER_WARNING);
+        throw new \Exception("在数据表 {$this->dbname}.{$this->table} 中没有字段 {$name}", 10005);
 	}
 
 	/**
@@ -496,16 +492,14 @@ class mysqlCO
 
         //开始预处理查询
         if(!$rs = $this->link->prepare($sql)){
-            trigger_error('数据执行失败！原因:['. $this->link->errno .']'. $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
-            return false;
+            throw new \Exception("数据执行失败！原因:[{$this->link->errno}]{$this->link->error} SQL语句：{$_sql}", 10006);
         }
 
         //执行查询
         if(!$rs->execute($this->params, 600)){
-            trigger_error('数据执行失败！原因:['. $this->link->errno .']'. $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
-            return false;
+            throw new \Exception("数据执行失败！原因:[{$this->link->errno}]{$this->link->error} SQL语句：{$_sql}", 10006);
         }
 
         $this->params = [];
@@ -534,16 +528,14 @@ class mysqlCO
 
         //开始预处理查询
         if (!$rs = $this->link->prepare($sql)) {
-            trigger_error('数据执行失败！原因:[' . $this->link->errno . ']' . $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
-            return false;
+            throw new \Exception("数据执行失败！原因:[{$this->link->errno}]{$this->link->error} SQL语句：{$_sql}", 10006);
         }
 
         //执行查询
         if (!$rs->execute($this->params, 600)) {
-            trigger_error('数据执行失败！原因:[' . $this->link->errno . ']' . $this->link->error . ' SQL语句：' . $_sql, E_USER_WARNING);
             $this->params = [];
-            return false;
+            throw new \Exception("数据执行失败！原因:[{$this->link->errno}]{$this->link->error} SQL语句：{$_sql}", 10006);
         }
         if($insert_id !== null)$insert_id = $this->link->insert_id;
 
@@ -591,13 +583,14 @@ class mysqlCO
 
 	/**
 	 * 查询记录集
-	 * @param boolean $islock 是否锁表
+	 * @param int $islock 是否锁表
 	 * @return array 结果集数组
 	 */
-	public function select(bool $islock = false)
+	public function select(int $islock = 0)
 	{
 		$sql = $this->_sql();
-		if($islock)$sql .= ' for update;';
+		if($islock == 1)$sql .= ' for update;';
+		if($islock == 2)$sql .= ' lock in share mode;';
 		if(!$rs = $this->query($sql))return false;
 		$data = $rs->fetchall();
         $this->_reset();
@@ -606,9 +599,9 @@ class mysqlCO
 
 	/**
 	 * 查询单条记录
-	 * @param boolean $islock 是否锁表
+	 * @param int $islock 是否锁表
 	 */
-	public function getone(bool $islock = false)
+	public function getone(int $islock = 0)
 	{
 		$this->limit(1);
 		$rs = $this->select($islock);
@@ -782,8 +775,7 @@ class mysqlCO
     public function updateAll(array $data_all, string $field = 'id')
     {
         if(!array_key_exists($field, $this->fields)){
-            trigger_error('条件字段['. $field .']不是有效字段名', E_USER_WARNING);
-            return 0;
+            throw new \Exception('条件字段['. $field .']不是有效字段名', 10007);
         }
 
         $_datas = [];

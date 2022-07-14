@@ -85,8 +85,7 @@ function session(string $key, $val = '[NULL]')
 	switch ($key){
 		case '[START]':
 		    if(is_object(U('session'))){
-		        trigger_error('session_start() 只能执行一次！', E_USER_WARNING);
-		        return false;
+                throw new \Exception('session_start() 只能执行一次！', 10102);
             }
 			$id = is_string($val) && $val !== '[NULL]' ? $val : null;
             U()->session = new \Simoole\Session($id);
@@ -171,13 +170,12 @@ function M(string $tablename = null, string $dbname = null)
             $dbname = U('dbname');
     }
     if(!\Simoole\Conf::database($dbname)){
-        trigger_error("Database config \"{$dbname}\" is not exist!", E_USER_ERROR);
+        throw new \Exception("Database config \"{$dbname}\" is not exist!", 10001);
         return false;
     }
     $_model = new \Simoole\Base\Model($dbname);
     if(!is_object($_model->db) || !is_object($_model->db->link)){
-        trigger_error("Database config \"{$dbname}\" can't instantiate!", E_USER_ERROR);
-        return false;
+        throw new \Exception("Database config \"{$dbname}\" can't instantiate!", 10001);
     }
     if(!empty($tablename))$_model->table($tablename);
     return $_model;
@@ -197,14 +195,12 @@ function D(string $tablename, string $dbname = null)
             $dbname = U('dbname');
     }
     if(!\Simoole\Conf::database($dbname)){
-        trigger_error("Database config \"{$dbname}\" is not exist!", E_USER_ERROR);
-        return false;
+        throw new \Exception("Database config \"{$dbname}\" is not exist!", 10001);
     }
 
     $class_name = "\\App\\Model\\" . ucfirst($tablename) . "Model";
     if(!isset(\Simoole\Root::$map[$class_name]) || !class_exists($class_name)){
-        trigger_error($class_name . ' is not exist!', E_USER_ERROR);
-        return false;
+        throw new \Exception($class_name . ' is not exist!', 10103);
     }else{
         $_model = new $class_name($dbname);
         if(!is_object($_model->db) || !is_object($_model->db->link))return false;
@@ -245,7 +241,7 @@ function I($name, $default = false)
 		}
 		return $data;
 	}else{
-		trigger_error($arr[0] . '不能用在I函数里!', E_USER_WARNING);
+        throw new \Exception($arr[0] . '不能用在I函数里!', 10104);
 	}
 }
 
@@ -327,8 +323,7 @@ function L($msg, $prefix = 'user', $dirname = null)
     if(!empty($dirname)){
         $dir = $dir . $dirname . '/';
         if(!is_dir($dir) && !mkdir($dir, 0777, true)){
-            trigger_error($dir . ' 该目录没有可写权限！', E_USER_WARNING);
-            return;
+            throw new \Exception($dir . ' 该目录没有可写权限！', 10105);
         }
         chmod($dir, 0777);
     }
@@ -439,7 +434,7 @@ function make(string $name, ...$params)
                 }
             };
         }else{
-            trigger_error("[{$name}]子进程不存在");
+            throw new \Exception("[{$name}]子进程不存在", 10107);
             return null;
         }
     }
@@ -571,8 +566,7 @@ function getRedis(string $name = 'DEFAULT')
     if(!isset($instance[$key]) || !$instance[$key]->ping()){
         $conf = \Simoole\Conf::redis($name);
         if(!$conf){
-            trigger_error('没有找到指定的REDIS配置', E_USER_ERROR);
-            return false;
+            throw new \Exception('没有找到指定的REDIS配置', 10108);
         }
         if($conf['USE_COROUTINE']){
             $instance[$key] = new \Swoole\Coroutine\Redis();
@@ -580,15 +574,13 @@ function getRedis(string $name = 'DEFAULT')
             $instance[$key] = new \Redis();
         }
         if(!$instance[$key]->connect($conf['HOST'], $conf['PORT'])){
-            trigger_error('Redis连接失败', E_USER_ERROR);
-            return false;
+            throw new \Exception('Redis连接失败', 10109);
         }
         if(!empty($conf['AUTH'])){
             $instance[$key]->auth($conf['AUTH']);
         }
         if(!$instance[$key]->select(intval($conf['DB']))){
-            trigger_error('Redis仓库切换失败', E_USER_ERROR);
-            return false;
+            throw new \Exception('Redis仓库切换失败', 10110);
         }
         \Swoole\Coroutine::defer(function() use (&$instance, $key){
             $instance[$key]->close();
@@ -725,4 +717,30 @@ function array_key_value($array)
             $return_arr[] = ['num'=>(string)$key, 'text'=>(string)$val];
     }
     return $return_arr;
+}
+
+/**
+ * 强制删除目录
+ * @param $directory
+ * @return void
+ */
+function delDir($directory)
+{
+    if(file_exists($directory)){
+        if($dir_handle=@opendir($directory)){
+            while($filename=readdir($dir_handle)){
+                if($filename!='.' && $filename!='..'){
+                    $subFile=$directory."/".$filename;
+                    if(is_dir($subFile)){
+                        delDir($subFile);
+                    }
+                    if(is_file($subFile)){
+                        unlink($subFile);
+                    }
+                }
+            }
+            closedir($dir_handle);
+            rmdir($directory);
+        }
+    }
 }

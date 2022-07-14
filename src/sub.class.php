@@ -92,12 +92,12 @@ Class Sub
 
         $class_name = trim($conf['class_name'], '\\') . 'Proc';
         if(!class_exists($class_name) || !method_exists($class_name, 'onStart')){
-            trigger_error($class_name . ' 不存在，子进程无法正常工作。');
+            throw new \Exception($class_name . ' 不存在，子进程无法正常工作。', 10112);
         }else{
             Root::$serv->defer(function() use ($class_name, $process, $name, $num){
                 Root::$worker = new $class_name($process, $name, $num);
                 if(Root::$worker->onStart() === false){
-                    trigger_error($class_name . '::onStart() 执行失败，子进程无法正常工作。');
+                    throw new \Exception($class_name . '::onStart() 执行失败，子进程无法正常工作。', 10113);
                 }
             });
         }
@@ -237,13 +237,13 @@ Class Sub
             foreach($arr as $str){
                 $res = $socket->send($str);
                 if(!$res){
-                    trigger_error('进程通信失败，错误码：' . $socket->errCode, E_USER_ERROR);
+                    throw new \Exception('进程通信失败，错误码：' . $socket->errCode, 10114);
                 }
             }
         }else{
             $res = $socket->send($data);
             if(!$res){
-                trigger_error('进程通信失败，错误码：' . $socket->errCode, E_USER_ERROR);
+                throw new \Exception('进程通信失败，错误码：' . $socket->errCode, 10115);
             }
         }
     }

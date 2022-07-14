@@ -5,12 +5,14 @@
 
 namespace Simoole\Util;
 use Simoole\Base\Proc;
+use Simoole\Conf;
 
 class ChildProc extends Proc
 {
     private $queueData = [];
     private $mtable = [];
     private $websocket_data = [];
+    private $file_handler = null;
 
     public function onStart()
     {
@@ -49,7 +51,9 @@ class ChildProc extends Proc
         });
 
         //定期清理仓库
-        Storage::cleanup();
+        if(Conf::storage('ENABLE')){
+            $this->storageCleanup();
+        }
 
         $this->consoleInit();
     }
@@ -94,6 +98,11 @@ class ChildProc extends Proc
                     if($row['worker_id'] == $worker_id)$data[$row['fd']] = $row['last_receive_time'];
                 }
                 return $data;
+            case MEMORY_STORAGE:
+                if($this->file_handler === null){
+                    $this->file_handler = make(FileHandler::class, $data['key']);
+                }
+                return call_user_func_array([$this->file_handler, $data['name']], $data['params']);
         }
     }
 
@@ -196,6 +205,48 @@ class ChildProc extends Proc
         $table = T($tablename);
         if(!$table)return $tablename . ' non-existent';
         return $table->$command(...$params);
+    }
+
+    /**
+     * 清理过期缓存
+     */
+    private function storageCleanup()
+    {
+        $conf = Conf::storage();
+        \Swoole\Timer::tick($conf['CLEANUP'] * 1000, function() use ($conf){
+            $time = time();
+            if($conf['DRIVE'] == 'redis'){
+                $redis = getRedis();
+                $list_key = $conf['PREFIX'] . '_key';
+                $count = $redis->llen($list_key);
+                for($i = 0; $i < $count; $i ++){
+                    $_key = $redis->rPop($list_key);
+                    $key = $conf['PREFIX'] . $_key;
+                    $data = $redis->hGetAll($key);
+                    if(empty($data)){
+                        //删除空仓库
+                        $redis->del($key);
+                    }else{
+                        foreach($data as $k => $v){
+                            if(!isset($v['expire']) || $v['expire'] < $time){
+                                //删除过期仓库数据
+                                $redis->hDel($key, $k);
+                            }
+                        }
+                        $redis->lPush($list_key, $_key);
+                    }
+                }
+            }else{
+                foreach($this->file_handler->getAll() as $data){
+                    foreach($data as $k => $v){
+                        if(!isset($v['expire']) || $v['expire'] < $time){
+                            //删除过期仓库数据
+                            $this->file_handler->del($k);
+                        }
+                    }
+                }
+            }
+        });
     }
 
 //    private function handleWorker(array $args)

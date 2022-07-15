@@ -74,6 +74,8 @@ class Crypt
      */
     static public function bin(array $arr, string $key = null)
     {
+        if(empty($arr))return [];
+        $arr = array_values($arr);
         $key = $key ?: \Simoole\Conf::tcp('secret_key');
         if(empty($key)){
             throw new \Exception('加密失败，缺少密钥');

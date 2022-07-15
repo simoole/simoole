@@ -315,10 +315,11 @@ HELP;
                     $code = str_replace("\r\n", '', $code); //清除换行符
                     $code = str_replace("\n", '', $code); //清除换行符
                     $code = str_replace("\t", '', $code); //清除制表符
-                    $pattern = ["/> *([^ ]*) *</","/[\s]+/","/<!--[^!]*-->/","/\" /","/ \"/","'/\*[^*]*\*/'"];
-                    $replace = [">\\1<"," ","","\"","\"",""];
+                    $pattern = ["/<\?php/", "/> *([^ ]*) *</","/[\s]+/","/<!--[^!]*-->/","/\" /","/ \"/","'/\*[^*]*\*/'"];
+                    $replace = ["<?php ",">\\1<"," ","","\"","\"",""];
                     $code = preg_replace($pattern, $replace, $code);
-                    $arr = encodeASCII($code);
+                    if(empty($code))continue;
+                    $arr = encodeASCII(base64_encode($code));
                     if(!empty(BUILD_CODE_KEY)){
                         $arr = Util\Crypt::bin($arr, BUILD_CODE_KEY);
                     }
@@ -369,15 +370,15 @@ HELP;
     /**
      * 加载文件
      * @param string $filepath 文件路径
-     * @param boolean $return 是否获取返回值
      */
-    static public function loadCode(string $code, $return = false)
+    static public function loadCode(string $code)
     {
         $temp = tmpfile();
         fwrite($temp, $code);
-        $res = self::loadFiles($temp, $return);
+        $stream = stream_get_meta_data($temp);
+        require $stream['uri'];
         fclose($temp);
-        if($return) return $res;
+        return $stream['uri'];
     }
 
     /**
@@ -407,7 +408,7 @@ HELP;
                         $arr = unpack('C*', file_get_contents($path));
                         if(count($arr) > 0){
                             $arr = Util\Crypt::bin($arr, $code_key);
-                            self::loadCode(decodeASCII($arr));
+                            $tmp_path = self::loadCode(base64_decode(decodeASCII($arr)));
                         }
                     }else self::loadFiles($path);
                 }
@@ -416,7 +417,7 @@ HELP;
                     $classname = "\\" . str_replace("\\\\", "\\", $classname);
                     if (!isset(self::$map[$classname]) && !empty(trim($classname, '\\'))) {
                         $ref = new \ReflectionClass($classname);
-                        if($ref->getFileName() == $path || str_contains($ref->getFileName(), md5($path))){
+                        if($ref->getFileName() == $path || (!empty($tmp_path) && $ref->getFileName() == $tmp_path)){
                             self::$map[$classname] = [
                                 'path' => $path,
                                 'classname' => $ref->getShortName(),
@@ -451,21 +452,23 @@ HELP;
                 foreach(self::$map as $m){
                     if($m['path'] == $path)continue 2;
                 }
+
                 if(!empty($_files) && ($index = array_search('cls_' . md5($path), $_files)) !== false) {
                     if(!empty($code_key)){
-                        $arr = unpack('C*', file_get_contents($path));
+                        $arr = unpack('C*', file_get_contents(APP_PATH . $_files[$index]));
                         if(count($arr) > 0){
                             //解码二进制
                             $arr = Util\Crypt::bin($arr, $code_key);
-                            self::loadCode(decodeASCII($arr));
+                            $tmp_path = self::loadCode(base64_decode(decodeASCII($arr)));
                         }
                     }else self::loadFiles(APP_PATH . $_files[$index]);
                 }else self::loadFiles($path);
+
                 foreach(get_declared_classes() as $classname){
                     $classname = "\\" . str_replace("\\\\", "\\", $classname);
                     if (!isset(self::$map[$classname]) && !empty(trim($classname, '\\'))) {
                         $ref = new \ReflectionClass($classname);
-                        if($ref->getFileName() == $path || str_contains($ref->getFileName(), md5($path))){
+                        if($ref->getFileName() == $path || (!empty($tmp_path) && $ref->getFileName() == $tmp_path)){
                             self::$map[$classname] = [
                                 'path' => $path,
                                 'classname' => $ref->getShortName(),
@@ -505,7 +508,7 @@ HELP;
                     if(count($arr) > 0){
                         //解码二进制
                         $arr = Util\Crypt::bin($arr, $code_key);
-                        self::loadCode(decodeASCII($arr));
+                        self::loadCode(base64_decode(decodeASCII($arr)));
                     }
                 }else self::loadFiles($path);
             }

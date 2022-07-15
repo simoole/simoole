@@ -297,11 +297,10 @@ HELP;
     {
         define('BUILD_PATH', __ROOT__ .'build/');
         self::loadFiles(CORE_PATH . 'root' . FUN_EXT);
-        $code_key = env('APP_CODE_KEY');
-        if(!empty($code_key)) self::loadFiles(CORE_PATH . 'util/crypt' . CLS_EXT);
+        if(!empty(BUILD_CODE_KEY)) self::loadFiles(CORE_PATH . 'util/crypt' . CLS_EXT);
         //删除build目录
         if(is_dir(BUILD_PATH))delDir(BUILD_PATH);
-        $build = function(string $path = APP_PATH) use (&$build, $code_key){
+        $build = function(string $path = APP_PATH) use (&$build){
             $funs = $classes = $others = [];
             foreach(scandir($path) as $file){
                 if(in_array($file, ['.', '..']))continue;
@@ -320,8 +319,8 @@ HELP;
                     $replace = [">\\1<"," ","","\"","\"",""];
                     $code = preg_replace($pattern, $replace, $code);
                     $arr = encodeASCII($code);
-                    if(!empty($code_key)){
-                        $arr = Util\Crypt::bin($arr, $code_key);
+                    if(!empty(BUILD_CODE_KEY)){
+                        $arr = Util\Crypt::bin($arr, BUILD_CODE_KEY);
                     }
                     array_unshift($arr, 'C*');
                     $code = call_user_func_array('pack', $arr);

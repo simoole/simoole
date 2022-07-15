@@ -6,10 +6,18 @@
 //CLI命令
 $comms = ['help', 'start', 'restart', 'update', 'stop', 'reload', 'cleanup', 'console', 'build'];
 $cli_command = strpos($argv[0], 'simoole') !== false ? ($argv[1] ?? $comms[0]) : $argv[2];
-if($pos = strpos($cli_command, ':')){
-    define('CLI_COMMAND_VERSION', substr($cli_command, $pos + 1));
-    $cli_command = substr($cli_command, 0, $pos);
-}else define('CLI_COMMAND_VERSION', 'latest');
+if(str_contains($cli_command, 'update')){
+    if($pos = strpos($cli_command, ':')){
+        define('CLI_COMMAND_VERSION', substr($cli_command, $pos + 1));
+        $cli_command = substr($cli_command, 0, $pos);
+    }else define('CLI_COMMAND_VERSION', 'latest');
+}
+if(str_contains($cli_command, 'build')){
+    if($pos = strpos($cli_command, ':')){
+        define('BUILD_CODE_KEY', substr($cli_command, $pos + 1));
+        $cli_command = substr($cli_command, 0, $pos);
+    }else define('BUILD_CODE_KEY', null);
+}
 if(!empty($cli_command) && in_array($cli_command, $comms))define('CLI_COMMAND', $cli_command);
 else define('CLI_COMMAND', 'help');
 

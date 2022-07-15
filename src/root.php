@@ -367,6 +367,20 @@ HELP;
     }
 
     /**
+     * 加载文件
+     * @param string $filepath 文件路径
+     * @param boolean $return 是否获取返回值
+     */
+    static public function loadCode(string $code, $return = false)
+    {
+        $temp = tmpfile();
+        fwrite($temp, $code);
+        $res = self::loadFiles($temp, $return);
+        fclose($temp);
+        if($return) return $res;
+    }
+
+    /**
      * 加载指定目录中的所有类
      * @param string $dir
      */
@@ -393,7 +407,7 @@ HELP;
                         $arr = unpack('C*', file_get_contents($path));
                         if(count($arr) > 0){
                             $arr = Util\Crypt::bin($arr, $code_key);
-                            eval('?>' . decodeASCII($arr));
+                            self::loadCode(decodeASCII($arr));
                         }
                     }else self::loadFiles($path);
                 }
@@ -443,7 +457,7 @@ HELP;
                         if(count($arr) > 0){
                             //解码二进制
                             $arr = Util\Crypt::bin($arr, $code_key);
-                            eval('?>' . decodeASCII($arr));
+                            self::loadCode(decodeASCII($arr));
                         }
                     }else self::loadFiles(APP_PATH . $_files[$index]);
                 }else self::loadFiles($path);
@@ -491,7 +505,7 @@ HELP;
                     if(count($arr) > 0){
                         //解码二进制
                         $arr = Util\Crypt::bin($arr, $code_key);
-                        eval('?>' . decodeASCII($arr));
+                        self::loadCode(decodeASCII($arr));
                     }
                 }else self::loadFiles($path);
             }

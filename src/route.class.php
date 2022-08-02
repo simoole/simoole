@@ -32,8 +32,10 @@ class Route
         if(!empty($route_conf['SUB_DOMAIN'])){
             //根据子域名查找子域名路由
             if(!empty($host)){
-                $arr = parse_url($host);
-                $host = $arr['host'];
+                if(preg_match('/^http\:/', $host)){
+                    $arr = parse_url($host);
+                    $host = $arr['host'];
+                }
                 if($pos = strpos($host, '.')){
                     $sub_domain = strtolower(substr($host, 0, $pos));
                     if(isset($route_conf['SUB_DOMAIN'][$sub_domain])){

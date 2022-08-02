@@ -237,11 +237,13 @@ class ChildProc extends Proc
                     }
                 }
             }else{
-                foreach($this->file_handler->getAll() as $data){
-                    foreach($data as $k => $v){
-                        if(!isset($v['expire']) || $v['expire'] < $time){
-                            //删除过期仓库数据
-                            $this->file_handler->del($k);
+                if($this->file_handler !== null){
+                    foreach($this->file_handler->getAll() as $data){
+                        foreach($data as $k => $v){
+                            if(!isset($v['expire']) || $v['expire'] < $time){
+                                //删除过期仓库数据
+                                $this->file_handler->del($k);
+                            }
                         }
                     }
                 }

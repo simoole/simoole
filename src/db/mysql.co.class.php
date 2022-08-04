@@ -745,6 +745,21 @@ class mysqlCO
                     case '/':
                         $arr[] = "`{$key}`=`{$key}`/{$v}";
                         break;
+                    case '&':
+                        $arr[] = "`{$key}`=`{$key}`&{$v}";
+                        break;
+                    case '|':
+                        $arr[] = "`{$key}`=`{$key}`|{$v}";
+                        break;
+                    case '^':
+                        $arr[] = "`{$key}`=`{$key}`^{$v}";
+                        break;
+                    case '>>':
+                        $arr[] = "`{$key}`=`{$key}`>>{$v}";
+                        break;
+                    case '<<':
+                        $arr[] = "`{$key}`=`{$key}`<<{$v}";
+                        break;
                     case 'exp':
                         $arr[] = "`{$key}`={$v}";
                         break;

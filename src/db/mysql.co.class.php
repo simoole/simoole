@@ -255,7 +255,7 @@ class mysqlCO
                     $arr[] = "({$tablename}.`{$key}` {$val[0]} ({$val[1]}))";
                 }elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['between', 'not between']) && count($val) == 3)
                     $arr[] = "({$tablename}.`{$key}` {$val[0]} '{$val[1]}' and '{$val[2]}')";
-                elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like']))
+                elseif(is_string($val[0]) && in_array(strtolower($val[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like', '&', '|', '^']))
                     $arr[] = "({$tablename}.`{$key}` {$val[0]} '{$val[1]}')";
                 else{
                     $char = ' and ';
@@ -274,7 +274,7 @@ class mysqlCO
                                 $_arr[] = "({$tablename}.`{$key}` {$v[0]} ({$v[1]}))";
                             }elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['between', 'not between']) && count($v) == 3)
                                 $_arr[] = "({$tablename}.`{$key}` {$v[0]} '{$v[1]}' and '{$v[2]}')";
-                            elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like']))
+                            elseif(is_string($v[0]) && in_array(strtolower($v[0]), ['=', '!=', '>', '<', '>=', '<=', '<>', 'like', 'not', 'not like', '&', '|', '^']))
                                 $_arr[] = "({$tablename}.`{$key}` {$v[0]} '{$v[1]}')";
                         }else{
                             $_arr[] = "({$tablename}.`{$key}` = ?)";

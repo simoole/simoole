@@ -70,13 +70,14 @@ class Http
             'route_group' => '',
             'route_path' => '',
             'class_name' => '',
-            'action_name' => ''
+            'action_name' => '',
+            'params' => []
         ];
 
         $host = '';
         if(isset($request->header['host']))$host = $request->header['host'];
         if(isset($request->header['http_host']))$host = $request->header['http_host'];
-        [$class_path, $route_path, $group_name] = Route::getPath($host, $data['server']['request_uri']??'/');
+        [$class_path, $route_path, $group_name, $params] = Route::getPath($host, $data['server']['request_uri']??'/');
         if($class_path === null){
             $response->end('');
             return;
@@ -89,6 +90,7 @@ class Http
         }
         $data['route_group'] = $group_name;
         $data['route_path'] = $route_path;
+        $data['params'] = $params;
         $pos = strpos($class_path, '@');
         if($pos !== false){
             $data['class_name'] = substr($class_path, 0, $pos);
@@ -134,12 +136,12 @@ class Http
         //判断是否开启自动try...catch，并进行对应处理
         if(Conf::app('auto_try')){
             try{
-                $content = self::exec($ob, $action_name);
+                $content = self::exec($ob, $action_name, $data['params']);
             }catch(\Exception $e){
                 $ob->error($e->getMessage(), $e->getCode());
             }
         }else{
-            $content = self::exec($ob, $action_name);
+            $content = self::exec($ob, $action_name, $data['params']);
         }
 
         //获取缓冲池的输出内容
@@ -167,14 +169,14 @@ class Http
         $response->end($content);
     }
 
-    static Private function exec(object $ob, string $action_name)
+    static Private function exec(object $ob, string $action_name, array $params = [])
     {
         U()->log('INFO: Controller instance completed');
         //优先执行_start()方法
         if($ob->_start() !== false){
             U()->log('INFO: _start() execution completed');
             //执行指定方法
-            $content = $ob->$action_name();
+            $content = $ob->$action_name(...$params);
             U()->log('INFO: Action execution completed');
             //执行结束方法
             $ob->_end();

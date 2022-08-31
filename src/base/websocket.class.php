@@ -117,8 +117,8 @@ class Websocket
                 $arr = $this->_crypt($arr);
             }
             array_unshift($arr, 'C*');
-            return \Swoole\Websocket::push($fd, call_user_func_array('pack', $arr), WEBSOCKET_OPCODE_BINARY);
-        }else return \Swoole\Websocket::push($fd, $data);
+            return \Simoole\Websocket::push($fd, call_user_func_array('pack', $arr), WEBSOCKET_OPCODE_BINARY);
+        }else return \Simoole\Websocket::push($fd, $data);
     }
 
     /**
